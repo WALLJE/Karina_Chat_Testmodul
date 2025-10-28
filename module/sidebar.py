@@ -107,15 +107,6 @@ def show_sidebar():
         if st.session_state.get("is_admin"):
             st.page_link("pages/21_Admin.py", label="🔑 Adminbereich")
 
-            # Kurzer Hinweis ausschließlich für Admins: Zeigt an, ob bereits ein
-            # AMBOSS-Ergebnis im Session State hinterlegt ist. Für detailliertes
-            # Debugging kann hier bei Bedarf eine Ausgabe der Schlüssel aktiviert
-            # werden (z. B. über `st.write(st.session_state.get("amboss_result"))`).
-            if "amboss_result" in st.session_state:
-                st.caption("ℹ️ AMBOSS-Ergebnis wurde geladen und steht für das Feedback bereit.")
-            else:
-                st.caption("ℹ️ Noch kein AMBOSS-Ergebnis im aktuellen Verlauf gespeichert.")
-
         st.markdown("---")
         st.caption("🔒 Weitere Seiten erscheinen automatisch, sobald diagnostische Schritte abgeschlossen wurden.")
 

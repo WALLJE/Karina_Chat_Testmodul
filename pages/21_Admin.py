@@ -6,16 +6,22 @@ from module.footer import copyright_footer
 from module.offline import display_offline_banner, is_offline
 from module.fallverwaltung import (
     fallauswahl_prompt,
+    get_verhaltensoptionen,
     lade_fallbeispiele,
     prepare_fall_session_state,
     reset_fall_session_state,
     speichere_fallbeispiel,
 )
 from module.fall_config import (
+    clear_fixed_behavior,
     clear_fixed_scenario,
+    get_behavior_fix_state,
     get_fall_fix_state,
+    get_config_file_status,
+    set_fixed_behavior,
     set_fixed_scenario,
 )
+from module.mcp_client import get_amboss_configuration_status
 
 
 copyright_footer()
@@ -41,6 +47,35 @@ if not st.session_state.get("is_admin"):
     st.stop()
 
 st.title("Adminbereich")
+
+# Der Statusüberblick ersetzt die Hinweise aus der Seitenleiste und bietet nun
+# zentral sichtbar an, ob AMBOSS korrekt angebunden ist und ob die
+# Konfigurationsdatei für Fixierungen verfügbar ist. Für Debugging kann der
+# Abschnitt bei Bedarf erweitert werden (z. B. durch Ausgabe zusätzlicher
+# Details).
+st.subheader("Statusübersicht")
+
+amboss_status = get_amboss_configuration_status()
+if amboss_status.available:
+    amboss_details = amboss_status.details or "AMBOSS MCP ist konfiguriert."
+    st.success(f"✅ AMBOSS MCP bereit: {amboss_details}")
+else:
+    amboss_message = amboss_status.message or "AMBOSS MCP ist nicht konfiguriert."
+    st.error(f"⚠️ AMBOSS MCP Problem: {amboss_message}")
+
+# Zusätzlich zeigen wir an, ob bereits eine Antwort des MCP-Clients im
+# Session State liegt. Das hilft beim Prüfen, ob ein Szenario bereits
+# verarbeitet wurde.
+if "amboss_result" in st.session_state:
+    st.info("AMBOSS-Ergebnis geladen: Die Rückgabe steht für das Feedback bereit.")
+else:
+    st.info("Noch kein AMBOSS-Ergebnis im aktuellen Verlauf gespeichert.")
+
+config_ok, config_message = get_config_file_status()
+if config_ok:
+    st.success(f"🗂️ Konfigurationsdatei: {config_message}")
+else:
+    st.error(f"🗂️ Konfigurationsdatei-Problem: {config_message}")
 
 st.subheader("Verbindungsmodus")
 current_offline = is_offline()
@@ -89,12 +124,17 @@ else:
     if not szenario_options:
         st.info("In der Datei wurden keine Szenarien gefunden.")
     else:
+        # Wir lesen den aktuellen Status der Fixierungen aus, um Anzeige und Formular passend vorzubelegen.
         fixed, fixed_szenario = get_fall_fix_state()
+        behavior_fixed, fixed_behavior_key = get_behavior_fix_state()
         aktuelles_szenario = st.session_state.get("diagnose_szenario") or st.session_state.get(
             "admin_selected_szenario"
         )
         aktuelles_verhalten_kurz = st.session_state.get("patient_verhalten_memo")
         aktuelles_verhalten_lang = st.session_state.get("patient_verhalten")
+        # Die Verhaltensoptionen dienen als Auswahlgrundlage für das Admin-Formular.
+        verhaltensoptionen = get_verhaltensoptionen()
+        verhalten_option_keys = sorted(verhaltensoptionen.keys())
 
         szenario_text = (
             f"**Aktuelles Szenario:** {aktuelles_szenario}"
@@ -110,6 +150,15 @@ else:
         else:
             modus_text = "**Modus:** Zufälliger Fall – neue Sitzungen erhalten ein zufälliges Szenario."
 
+        if behavior_fixed and fixed_behavior_key in verhaltensoptionen:
+            verhaltensmodus_text = (
+                "**Verhaltensmodus:** Fixiert – alle Sitzungen nutzen aktuell das vorgegebene Verhalten."
+            )
+        else:
+            verhaltensmodus_text = (
+                "**Verhaltensmodus:** Zufällig – das Verhalten wird bei jeder Sitzung neu bestimmt."
+            )
+
         if aktuelles_verhalten_kurz and aktuelles_verhalten_lang:
             verhalten_text = (
                 "**Patient*innenverhalten:** "
@@ -120,7 +169,9 @@ else:
         else:
             verhalten_text = "Für das aktuelle Szenario ist kein Verhalten gesetzt."
 
-        st.info(f"{szenario_text}\n\n{modus_text}\n\n{verhalten_text}")
+        st.info(
+            f"{szenario_text}\n\n{modus_text}\n\n{verhaltensmodus_text}\n\n{verhalten_text}"
+        )
 
         with st.form("admin_fallauswahl"):
             if fixed and fixed_szenario in szenario_options:
@@ -144,7 +195,33 @@ else:
                     "Wird die Fixierung aufgehoben, wählen nachfolgende Sitzungen wieder zufällig."
                 ),
             )
-            bestaetigt = st.form_submit_button("Szenario übernehmen", type="primary")
+
+            if behavior_fixed and fixed_behavior_key in verhalten_option_keys:
+                default_behavior_index = verhalten_option_keys.index(fixed_behavior_key)
+            elif aktuelles_verhalten_kurz in verhalten_option_keys:
+                default_behavior_index = verhalten_option_keys.index(aktuelles_verhalten_kurz)
+            else:
+                default_behavior_index = 0
+
+            ausgewaehltes_verhalten = st.selectbox(
+                "Patient*innenverhalten auswählen",
+                verhalten_option_keys,
+                index=default_behavior_index,
+                help=(
+                    "Lege das gewünschte Verhalten fest. Über den Fixierschalter kannst du bestimmen, ob es für alle "
+                    "Sitzungen gilt oder weiterhin zufällig gewählt wird."
+                ),
+                format_func=lambda key: f"{key.capitalize()} – {verhaltensoptionen[key]}",
+            )
+            verhalten_fix_toggle = st.toggle(
+                "Patient*innenverhalten fixieren",
+                value=behavior_fixed and fixed_behavior_key in verhalten_option_keys,
+                help=(
+                    "Aktiviere diese Option, damit alle künftigen Sitzungen dieses Verhalten nutzen. "
+                    "Ohne Fixierung wird pro Sitzung zufällig ausgewählt."
+                ),
+            )
+            bestaetigt = st.form_submit_button("Auswahl übernehmen", type="primary")
 
         if bestaetigt and ausgewaehltes_szenario:
             reset_fall_session_state()
@@ -156,6 +233,12 @@ else:
                 clear_fixed_scenario()
                 st.session_state.pop("admin_selected_szenario", None)
                 fallauswahl_prompt(fall_df)
+
+            if verhalten_fix_toggle and ausgewaehltes_verhalten:
+                set_fixed_behavior(ausgewaehltes_verhalten)
+            else:
+                clear_fixed_behavior()
+
             prepare_fall_session_state()
             try:
                 st.switch_page("pages/1_Anamnese.py")

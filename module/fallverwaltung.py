@@ -15,6 +15,7 @@ except Exception:  # pragma: no cover - fallback when requests is unavailable
 
 from module.patient_language import get_patient_forms
 from module.MCP_Amboss import call_amboss_search
+from module.fall_config import clear_fixed_behavior, get_behavior_fix_state
 
 
 DEFAULT_FALLDATEI = "fallbeispiele.xlsx"
@@ -63,6 +64,21 @@ _FALL_SESSION_PREFIXES: tuple[str, ...] = (
     "befunde_runde_",
 )
 
+# Übersicht aller verfügbaren Verhaltensoptionen mit sprechenden Beschreibungen. Die Schlüssel werden im
+# Session State abgelegt, damit eine Fixierung administrativ gesteuert werden kann.
+_VERHALTENSOPTIONEN: dict[str, str] = {
+    "knapp": "Beantworte Fragen grundsätzlich sehr knapp. Gib nur so viele Informationen preis, wie direkt erfragt wurden.",
+    "redselig": "Beginne Antworten gern mit kleinen Anekdoten über Alltag, Beruf oder Familie und verliere dich in Nebensächlichkeiten. Gehe auf medizinische Fragen nur beiläufig - aber korrekt - ein und lenke schnell wieder auf private Themen um.",
+    "ängstlich": "Klinge sehr ängstlich, jede Frage macht Dir Angst, so dass Du häufig ungefragt von Sorgen und Angst vor Krankenhaus, Krebs oder Tod erzählst.",
+    "wissbegierig": "Wirke vorbereitet, zitiere gelegentlich medizinische Begriffe aus Internetrecherchen und stelle nach jeder Antwort mindestens eine Rückfrage nach Differenzialdiagnosen, Untersuchungen oder Leitlinien.",
+    "verharmlosend": "Spiele Beschwerden konsequent herunter, nutze variierende Phrasen wie ‚Ist nicht so schlimm‘. Gib Symptome erst auf konkrete Nachfrage preis und betone, dass du eigentlich gesund wirken möchtest.",
+}
+
+
+def get_verhaltensoptionen() -> dict[str, str]:
+    """Gibt eine Kopie der Verhaltensoptionen zurück."""
+
+    return dict(_VERHALTENSOPTIONEN)
 
 def lade_fallbeispiele(*, url: str | None = None, pfad: str | None = None) -> pd.DataFrame:
     """Liest die Fallbeispiele als DataFrame ein.
@@ -260,15 +276,15 @@ def prepare_fall_session_state(
     st.session_state.setdefault("patient_name", "Unbekannte Person")
     st.session_state.setdefault("patient_job", "unbekannt")
 
-    verhaltensoptionen = {
-        "knapp": "Beantworte Fragen grundsätzlich sehr knapp. Gib nur so viele Informationen preis, wie direkt erfragt wurden.",
-        "redselig": "Beginne Antworten gern mit kleinen Anekdoten über Alltag, Beruf oder Familie und verliere dich in Nebensächlichkeiten. Gehe auf medizinische Fragen nur beiläufig - aber korrekt - ein und lenke schnell wieder auf private Themen um.",
-        "ängstlich": "Klinge sehr ängstlich, jede Frage macht Dir Angst, so dass Du häufig ungefragt von Sorgen und Angst vor Krankenhaus, Krebs oder Tod erzählst.",
-        "wissbegierig": "Wirke vorbereitet, zitiere gelegentlich medizinische Begriffe aus Internetrecherchen und stelle nach jeder Antwort mindestens eine Rückfrage nach Differenzialdiagnosen, Untersuchungen oder Leitlinien.",
-        "verharmlosend": "Spiele Beschwerden konsequent herunter, nutze variierende Phrasen wie ‚Ist nicht so schlimm‘. Gib Symptome erst auf konkrete Nachfrage preis und betone, dass du eigentlich gesund wirken möchtest.",
-    }
-
-    verhalten_memo = random.choice(list(verhaltensoptionen.keys()))
+    verhaltensoptionen = get_verhaltensoptionen()
+    behavior_fixed, behavior_key = get_behavior_fix_state()
+    if behavior_fixed and behavior_key in verhaltensoptionen:
+        verhalten_memo = behavior_key
+    else:
+        if behavior_fixed:
+            # Falls eine Fixierung existiert, der Schlüssel aber nicht erkannt wird, räumen wir die Fixierung auf.
+            clear_fixed_behavior()
+        verhalten_memo = random.choice(list(verhaltensoptionen.keys()))
     st.session_state.patient_verhalten_memo = verhalten_memo
     st.session_state.patient_verhalten = verhaltensoptionen[verhalten_memo]
 
@@ -331,4 +347,5 @@ __all__ = [
     "lade_fallbeispiele",
     "prepare_fall_session_state",
     "reset_fall_session_state",
+    "get_verhaltensoptionen",
 ]
