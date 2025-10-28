@@ -100,7 +100,10 @@ def show_sidebar():
             "final_diagnose" in st.session_state and
             "therapie_vorschlag" in st.session_state
         ):
-            st.page_link("pages/6_Feedback_und_Evaluation.py", label="📝 Feedback & Download")
+            st.page_link("pages/6_Feedback.py", label="📝 Feedback")
+
+        if st.session_state.get("final_feedback"):
+            st.page_link("pages/7_Evaluation_und_Download.py", label="📊 Evaluation & Download")
 
         st.page_link("pages/20_Impressum.py", label="Impressum und Hinweise", icon="📰")
 
@@ -108,5 +111,4 @@ def show_sidebar():
             st.page_link("pages/21_Admin.py", label="🔑 Adminbereich")
 
         st.markdown("---")
-        st.caption("🔒 Weitere Seiten erscheinen automatisch, sobald diagnostische Schritte abgeschlossen wurden.")
 

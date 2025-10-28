@@ -83,6 +83,3 @@ st.page_link(
     disabled="koerper_befund" not in st.session_state
 )
 
-if "koerper_befund" not in st.session_state:
-    st.info(":grey[Weitere Diagnostik wird erst nach der körperlichen Untersuchung verfügbar.]", icon="🔒")
-
