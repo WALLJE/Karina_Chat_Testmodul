@@ -17,9 +17,11 @@ from module.fall_config import (
     clear_fixed_scenario,
     get_behavior_fix_state,
     get_fall_fix_state,
+    get_config_file_status,
     set_fixed_behavior,
     set_fixed_scenario,
 )
+from module.mcp_client import get_amboss_configuration_status
 
 
 copyright_footer()
@@ -45,6 +47,35 @@ if not st.session_state.get("is_admin"):
     st.stop()
 
 st.title("Adminbereich")
+
+# Der Statusüberblick ersetzt die Hinweise aus der Seitenleiste und bietet nun
+# zentral sichtbar an, ob AMBOSS korrekt angebunden ist und ob die
+# Konfigurationsdatei für Fixierungen verfügbar ist. Für Debugging kann der
+# Abschnitt bei Bedarf erweitert werden (z. B. durch Ausgabe zusätzlicher
+# Details).
+st.subheader("Statusübersicht")
+
+amboss_status = get_amboss_configuration_status()
+if amboss_status.available:
+    amboss_details = amboss_status.details or "AMBOSS MCP ist konfiguriert."
+    st.success(f"✅ AMBOSS MCP bereit: {amboss_details}")
+else:
+    amboss_message = amboss_status.message or "AMBOSS MCP ist nicht konfiguriert."
+    st.error(f"⚠️ AMBOSS MCP Problem: {amboss_message}")
+
+# Zusätzlich zeigen wir an, ob bereits eine Antwort des MCP-Clients im
+# Session State liegt. Das hilft beim Prüfen, ob ein Szenario bereits
+# verarbeitet wurde.
+if "amboss_result" in st.session_state:
+    st.info("AMBOSS-Ergebnis geladen: Die Rückgabe steht für das Feedback bereit.")
+else:
+    st.info("Noch kein AMBOSS-Ergebnis im aktuellen Verlauf gespeichert.")
+
+config_ok, config_message = get_config_file_status()
+if config_ok:
+    st.success(f"🗂️ Konfigurationsdatei: {config_message}")
+else:
+    st.error(f"🗂️ Konfigurationsdatei-Problem: {config_message}")
 
 st.subheader("Verbindungsmodus")
 current_offline = is_offline()

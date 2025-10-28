@@ -15,6 +15,7 @@ __all__ = [
     "get_behavior_fix_state",
     "set_fixed_behavior",
     "clear_fixed_behavior",
+    "get_config_file_status",
 ]
 
 # Der Datenordner liegt eine Ebene über dem Modulverzeichnis, damit alle Komponenten
@@ -185,3 +186,33 @@ def clear_fixed_behavior() -> None:
     config = _load_config()
     config.update({"behavior_fixed": False, "behavior": "", "behavior_fixed_at": ""})
     _save_config(config)
+
+
+def get_config_file_status() -> tuple[bool, str]:
+    """Prüft, ob die JSON-Konfigurationsdatei vorhanden und lesbar ist."""
+
+    # Wir liefern zwecks Anzeige im Adminbereich einen booleschen Status sowie
+    # eine erklärende Nachricht zurück. Dadurch können Admins schnell erkennen,
+    # ob die Fixierungsinformationen aus ``fall_config.json`` zuverlässig
+    # geladen werden. Für detaillierte Fehlersuche lässt sich die Nachricht
+    # bei Bedarf im UI erweitern oder loggen.
+    if not _CONFIG_PATH.exists():
+        return False, "Die Konfigurationsdatei wurde noch nicht erstellt."
+
+    try:
+        raw = _CONFIG_PATH.read_text(encoding="utf-8")
+    except OSError as exc:
+        return False, f"Die Konfigurationsdatei konnte nicht gelesen werden: {exc}"
+
+    if not raw.strip():
+        # Eine leere Datei behandeln wir als Hinweis darauf, dass noch keine
+        # Fixierungen gespeichert wurden. Technisch ist das in Ordnung, daher
+        # liefern wir einen Erfolgshinweis mit zusätzlicher Erläuterung.
+        return True, "Die Konfigurationsdatei ist leer, kann aber gelesen werden."
+
+    try:
+        json.loads(raw)
+    except json.JSONDecodeError as exc:
+        return False, f"Die Konfigurationsdatei enthält ungültiges JSON: {exc}"
+
+    return True, "Die Konfigurationsdatei ist vorhanden und gültig."
