@@ -103,7 +103,7 @@ def show_sidebar():
             st.page_link("pages/6_Feedback.py", label="📝 Feedback")
 
         if st.session_state.get("final_feedback"):
-            st.page_link("pages/7_Evaluation_und_Download.py", label="📊 Evaluation & Download")
+            st.page_link("pages/7_Evaluation_und_Download.py", label="📊 Evaluation")
 
         st.page_link("pages/20_Impressum.py", label="Impressum und Hinweise", icon="📰")
 
