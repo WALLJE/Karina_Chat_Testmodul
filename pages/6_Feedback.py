@@ -129,10 +129,9 @@ def main() -> None:
     _zeige_feedback(feedback_text)
 
     st.markdown("---")
-    st.subheader("➡️ Nächster Schritt")
     st.page_link(
         "pages/7_Evaluation_und_Download.py",
-        label="Weiter zur Evaluation & Download",
+        label="Weiter zur Evaluation",
         icon="📊",
     )
     st.caption(
