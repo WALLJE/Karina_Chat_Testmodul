@@ -154,8 +154,5 @@ st.page_link(
     disabled="befunde" not in st.session_state
 )
 
-if "befunde" not in st.session_state:
-    st.info(":grey[Dieser Schritt wird verfügbar, sobald Diagnostik erfolgt ist.]", icon="🔒")
-
 copyright_footer()
 

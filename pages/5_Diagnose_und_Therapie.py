@@ -38,20 +38,14 @@ else:
 
 # Weiter-Link zum Feedback
 st.page_link(
-    "pages/6_Feedback_und_Evaluation.py",
-    label="Weiter zur Auswertung & Feedback",
+    "pages/6_Feedback.py",
+    label="Weiter zum Feedback",
     icon="📝",
     disabled=not (
         st.session_state.get("final_diagnose", "").strip() and
         st.session_state.get("therapie_vorschlag", "").strip()
     )
 )
-
-if not (
-    st.session_state.get("final_diagnose", "").strip() and
-    st.session_state.get("therapie_vorschlag", "").strip()
-):
-    st.info(":grey[Dieser Schritt wird verfügbar, sobald Diagnose und Therapiekonzept eingegeben wurden.]", icon="🔒")
 
 
 copyright_footer()
