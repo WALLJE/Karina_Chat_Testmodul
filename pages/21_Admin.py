@@ -22,6 +22,7 @@ from module.fall_config import (
     set_fixed_scenario,
 )
 from module.mcp_client import get_amboss_configuration_status
+from module.amboss_render import render_markdown_for_display
 from module.feedback_mode import (
     FEEDBACK_MODE_AMBOSS_CHATGPT,
     FEEDBACK_MODE_CHATGPT,
@@ -75,6 +76,27 @@ else:
 # verarbeitet wurde.
 if "amboss_result" in st.session_state:
     st.info("AMBOSS-Ergebnis geladen: Die Rückgabe steht für das Feedback bereit.")
+
+    with st.expander("🧾 AMBOSS-MCP-Antwort einblenden"):
+        # Der Expander zeigt die formatierte Markdown-Version der MCP-Antwort – exakt so,
+        # wie sie im Testskript ``mcp_streamable_test`` dargestellt wird. Für
+        # weiterführendes Debugging kann innerhalb des Try-Blocks eine zusätzliche
+        # ``st.write``-Ausgabe aktiviert werden, um das Roh-JSON zu inspizieren.
+        amboss_data = st.session_state.get("amboss_result")
+        if amboss_data:
+            try:
+                pretty_md = render_markdown_for_display(amboss_data)
+            except Exception as err:
+                st.error(
+                    "Die AMBOSS-Antwort konnte nicht formatiert werden. Bitte siehe die Kommentare"
+                    " im Code für Debug-Hinweise (Details: {err}).".format(err=err)
+                )
+                # Debug-Hinweis: Bei Bedarf ``st.write(amboss_data)`` aktivieren, um das Rohobjekt
+                # anzuzeigen und Formatprobleme zu identifizieren.
+            else:
+                st.code(pretty_md, language="markdown")
+        else:
+            st.caption("Im Session State liegt derzeit keine verwertbare AMBOSS-Antwort vor.")
 else:
     st.info("Noch kein AMBOSS-Ergebnis im aktuellen Verlauf gespeichert.")
 
