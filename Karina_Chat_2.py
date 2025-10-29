@@ -26,6 +26,9 @@ from module.sidebar import show_sidebar
 from module.startinfo import zeige_instruktionen_vor_start
 from module.token_counter import init_token_counters, add_usage
 from module.offline import display_offline_banner, is_offline
+from module.gpt_feedback import (
+    speichere_gpt_feedback_in_supabase as speichere_feedback_mit_modus,
+)
 from module.fallverwaltung import (
     DEFAULT_FALLDATEI_URL,
     fallauswahl_prompt,
@@ -62,36 +65,13 @@ def initialisiere_session_state():
     st.session_state.setdefault("offline_mode", False)
 
 def speichere_gpt_feedback_in_supabase():
-    if is_offline():
-        st.info("🔌 Offline-Modus: Feedback wird nicht in Supabase gespeichert.")
-        return
+    """Leitet die Supabase-Speicherung an das neue Hilfsmodul weiter."""
 
-    jetzt = datetime.now()
-    start = st.session_state.get("startzeit", jetzt)
-    dauer_min = round((jetzt - start).total_seconds() / 60, 1)
-
-    gpt_row = {
-        "datum": jetzt.strftime("%Y-%m-%d"),
-        "uhrzeit": jetzt.strftime("%H:%M:%S"),
-        "bearbeitungsdauer_min": dauer_min,
-        "szenario": st.session_state.get("diagnose_szenario", ""),
-        "name": st.session_state.get("patient_name", ""),
-        "alter": st.session_state.get("patient_age", ""),
-        "beruf": st.session_state.get("patient_job", ""),
-        "verhalten": st.session_state.get("patient_verhalten_memo", "unbekannt"),
-        "verdachtsdiagnosen": st.session_state.get("user_ddx2", ""),
-        "diagnostik": st.session_state.get("user_diagnostics", ""),
-        "finale_diagnose": st.session_state.get("final_diagnose", ""),
-        "therapie": st.session_state.get("therapie_vorschlag", ""),
-        "gpt_feedback": st.session_state.get("final_feedback", "")
-    }
-
-    try:
-        st.write("📤 Insert-Daten:", gpt_row)
-        supabase.table("feedback_gpt").insert(gpt_row).execute()
-        st.success("✅ GPT-Feedback wurde in Supabase gespeichert.") # Für Debug
-    except Exception as e:
-        st.error(f"🚫 Fehler beim Speichern in Supabase: {repr(e)}")
+    # Die bisherige Implementierung wurde hier bewusst ersetzt, damit exakt dieselbe
+    # Logik genutzt wird wie auf der dedizierten Feedback-Seite (``pages/6_Feedback.py``).
+    # Dort wird der Feedback-Modus ("Client") bereits berücksichtigt und zuverlässig in
+    # Supabase abgelegt. Durch die Bündelung vermeiden wir divergierende Datenstrukturen.
+    speichere_feedback_mit_modus()
 
 #---------------- Routinen Ende -------------------
 initialisiere_session_state()
