@@ -68,10 +68,10 @@ _FALL_SESSION_PREFIXES: tuple[str, ...] = (
 # Session State abgelegt, damit eine Fixierung administrativ gesteuert werden kann.
 _VERHALTENSOPTIONEN: dict[str, str] = {
     "knapp": "Beantworte Fragen grundsätzlich sehr knapp. Gib nur so viele Informationen preis, wie direkt erfragt wurden.",
-    "redselig": "Beginne Antworten gern mit kleinen Anekdoten über Alltag, Beruf oder Familie und verliere dich in Nebensächlichkeiten. Gehe auf medizinische Fragen nur beiläufig - aber korrekt - ein und lenke schnell wieder auf private Themen um.",
-    "ängstlich": "Klinge sehr ängstlich, jede Frage macht Dir Angst, so dass Du häufig ungefragt von Sorgen und Angst vor Krankenhaus, Krebs oder Tod erzählst.",
-    "wissbegierig": "Wirke vorbereitet, zitiere gelegentlich medizinische Begriffe aus Internetrecherchen und stelle nach jeder Antwort mindestens eine Rückfrage nach Differenzialdiagnosen, Untersuchungen oder Leitlinien.",
-    "verharmlosend": "Spiele Beschwerden konsequent herunter, nutze variierende Phrasen wie ‚Ist nicht so schlimm‘. Gib Symptome erst auf konkrete Nachfrage preis und betone, dass du eigentlich gesund wirken möchtest.",
+    "redselig": "Beginne Antworten gern mit kleinen Anekdoten über Alltag, Beruf oder Familie. Gehe auf medizinische Fragen nur beiläufig - aber korrekt - ein und lenke bei manchen Fragen wieder auf private Themen um.",
+    "ängstlich": "Wirke angespannt und vorsichtig, erwähne konkrete Sorgen (z. B. vor Krankenhaus oder Krebs) nur, wenn die Fragen darauf hindeuten, und vermeide Wiederholungen. ",
+    "wissbegierig": "Wirke vorbereitet, zitiere gelegentlich medizinische Begriffe aus Internetrecherchen und frage aktiv nach Differenzialdiagnosen, Untersuchungen oder Leitlinien.",
+    "verharmlosend": "Spiele Beschwerden konsequent herunter, nutze variierende Phrasen wie ‚Ist nicht so schlimm‘, vermeide Wiederholungen. Gib Symptome erst auf konkrete Nachfrage preis und betone, dass du eigentlich gesund wirken möchtest.",
 }
 
 
