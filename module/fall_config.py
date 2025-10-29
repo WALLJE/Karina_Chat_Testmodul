@@ -197,7 +197,7 @@ def get_config_file_status() -> tuple[bool, str]:
     # geladen werden. Für detaillierte Fehlersuche lässt sich die Nachricht
     # bei Bedarf im UI erweitern oder loggen.
     if not _CONFIG_PATH.exists():
-        return False, "Die Konfigurationsdatei wurde noch nicht erstellt."
+        return False, "Konfigurationsdatei wurde nicht erstellt - keine Fixierung aktiv."
 
     try:
         raw = _CONFIG_PATH.read_text(encoding="utf-8")
