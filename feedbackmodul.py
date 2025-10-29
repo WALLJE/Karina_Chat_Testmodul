@@ -1,6 +1,45 @@
+"""Erstellung des Abschlussfeedbacks mit wählbarem Modus.
+
+Die Funktion ``feedback_erzeugen`` liefert weiterhin das strukturierte
+Abschlussfeedback, berücksichtigt nun aber je nach Modus zusätzlich die
+AMBOSS-Ergebnisse. Die Kommentare sind bewusst ausführlich gehalten, damit
+Anpassungen (z. B. neue Feedback-Modi) schnell nachvollzogen werden können.
+"""
+
+from __future__ import annotations
+
+import json
+from typing import Any
+
+import streamlit as st
+
 from module.token_counter import init_token_counters, add_usage
 from module.patient_language import get_patient_forms
 from module.offline import get_offline_feedback, is_offline
+from module.feedback_mode import (
+    FEEDBACK_MODE_AMBOSS_CHATGPT,
+    determine_feedback_mode,
+)
+
+
+def _format_amboss_result(data: Any) -> str:
+    """Bereitet die AMBOSS-Antwort für den Prompt in Textform auf."""
+
+    if not data:
+        return "Keine AMBOSS-Daten im Session State gefunden."
+
+    try:
+        text = json.dumps(data, ensure_ascii=False, indent=2)
+    except TypeError:
+        text = str(data)
+
+    max_length = 4000
+    if len(text) > max_length:
+        # Debug-Hinweis: Für eine ausführliche Analyse kann dieser Abschnitt
+        # temporär deaktiviert oder der Grenzwert erhöht werden.
+        text = text[:max_length] + "\n\n[Ausgabe wegen Länge gekürzt]"
+    return text
+
 
 def feedback_erzeugen(
     client,
@@ -14,13 +53,18 @@ def feedback_erzeugen(
     anzahl_termine,
     diagnose_szenario
 ):
+    """Generiert das Feedback unter Beachtung des gewählten Feedback-Modus."""
+
+    feedback_mode = determine_feedback_mode()
+
     if is_offline():
         return get_offline_feedback(diagnose_szenario)
 
     patient_forms = get_patient_forms()
 
     prompt = f"""
-Ein Medizinstudierender hat eine vollständige virtuelle Fallbesprechung mit {patient_forms.phrase("dat", article="indefinite")} durchgeführt. Du bist ein erfahrener medizinischer Prüfer.
+Ein Medizinstudierender hat eine vollständige virtuelle Fallbesprechung mit {patient_forms.phrase("dat", article="indefinite")}
+durchgeführt. Du bist ein erfahrener medizinischer Prüfer.
 
 Beurteile ausschließlich die Eingaben und Entscheidungen des Studierenden – NICHT die Antworten {patient_forms.phrase("gen")} oder automatisch generierte Inhalte.
 
@@ -49,20 +93,29 @@ Die Fallbearbeitung umfasste {anzahl_termine} Diagnostik-Termine.
 
 Strukturiere dein Feedback klar, hilfreich und differenziert – wie ein persönlicher Kommentar bei einer mündlichen Prüfung, schreibe in der zweiten Person.
 
-Nenne vorab das zugrunde liegende Szennario. Gib an, ob die Diagnose richtig gestellt wurde. Gib an, wieviele Termine für die Diagnostik benötigt wurden.
+Nenne vorab das zugrunde liegende Szenario. Gib an, ob die Diagnose richtig gestellt wurde. Gib an, wieviele Termine für die Diagnostik benötigt wurden.
 
 1. Wurden im Gespräch alle relevanten anamnestischen Informationen erhoben?
 2. War die gewählte Diagnostik nachvollziehbar, vollständig und passend zur Szenariodiagnose **{diagnose_szenario}**?
 3. War die gewählte Diagnostik nachvollziehbar, vollständig und passend zu den Differentialdiagnosen **{user_ddx2}**?
-4. Beurteile, ob die diagnostische Strategie sinnvoll aufgebaut war, beachte dabei die Zahl der notwendigen UNtersuchungstermine. Gab es unnötige Doppeluntersuchungen, sinnvolle Eskalation, fehlende Folgeuntersuchungen? Beziehe dich ausdrücklich auf die Reihenfolge und den Inhalt der Runden.
+4. Beurteile, ob die diagnostische Strategie sinnvoll aufgebaut war, beachte dabei die Zahl der notwendigen Untersuchungstermine. Gab es unnötige Doppeluntersuchungen, sinnvolle Eskalation, fehlende Folgeuntersuchungen? Beziehe dich ausdrücklich auf die Reihenfolge und den Inhalt der Runden.
 5. Ist die finale Diagnose nachvollziehbar, insbesondere im Hinblick auf Differenzierung zu anderen Möglichkeiten?
 6. Ist das Therapiekonzept leitliniengerecht, plausibel und auf die Diagnose abgestimmt?
 
 **Berücksichtige und kommentiere zusätzlich**:
-- ökologische Aspekte (z. B. überflüssige Diagnostik, zuviele Anforderungen, zuviele Termine, CO₂-Bilanz, Strahlenbelastung bei CT oder Röntgen, Ressourcenverbrauch).  
+- ökologische Aspekte (z. B. überflüssige Diagnostik, zuviele Anforderungen, zuviele Termine, CO₂-Bilanz, Strahlenbelastung bei CT oder Röntgen, Ressourcenverbrauch).
 - ökonomische Sinnhaftigkeit (Kosten-Nutzen-Verhältnis)
 - Beachte und begründe auch, warum zuwenig Diagnostik unwirtschaftlich und nicht nachhaltig sein kann.
 """
+
+    if feedback_mode == FEEDBACK_MODE_AMBOSS_CHATGPT:
+        amboss_context = _format_amboss_result(st.session_state.get("amboss_result"))
+        prompt += f"""
+
+Zusätzliche Fachinformationen (AMBOSS):
+{amboss_context}
+"""
+
     init_token_counters()
     response = client.chat.completions.create(
         model="gpt-4",
