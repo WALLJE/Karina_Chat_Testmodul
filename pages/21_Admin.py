@@ -82,7 +82,7 @@ config_ok, config_message = get_config_file_status()
 if config_ok:
     st.success(f"🗂️ Konfigurationsdatei: {config_message}")
 else:
-    st.error(f"🗂️ Konfigurationsdatei-Problem: {config_message}")
+    st.error(f"🗂️ Konfigurationsdatei-Hinweis: {config_message}")
 
 st.subheader("Verbindungsmodus")
 current_offline = is_offline()
