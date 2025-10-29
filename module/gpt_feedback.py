@@ -58,7 +58,10 @@ def speichere_gpt_feedback_in_supabase():
         "befunde": alle_befunde,
         "prompt_tokens_sum": int(prompt_sum),
         "completion_tokens_sum": int(completion_sum),
-        "total_tokens_sum": int(total_sum)
+        "total_tokens_sum": int(total_sum),
+        # Der Feedback-Modus wird als "Client" gespeichert, damit im Supabase-Export
+        # nachvollzogen werden kann, ob AMBOSS-Daten eingeflossen sind.
+        "Client": st.session_state.get("feedback_mode", "ChatGPT"),
     }
 
     try:
