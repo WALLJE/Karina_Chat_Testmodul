@@ -22,6 +22,13 @@ from module.fall_config import (
     set_fixed_scenario,
 )
 from module.mcp_client import get_amboss_configuration_status
+from module.feedback_mode import (
+    FEEDBACK_MODE_AMBOSS_CHATGPT,
+    FEEDBACK_MODE_CHATGPT,
+    SESSION_KEY_EFFECTIVE_MODE,
+    reset_random_mode,
+    set_mode_override,
+)
 
 
 copyright_footer()
@@ -96,6 +103,52 @@ if offline_toggle != current_offline:
     else:
         st.info("Online-Modus reaktiviert. Die Anwendung wird neu gestartet.")
         _restart_application_after_offline()
+
+st.subheader("Feedback-Modus")
+st.write(
+    "Wähle hier, ob das Feedback zufällig oder gezielt mit AMBOSS-Bezug erstellt wird."
+)
+
+mode_options = {
+    "🎲 Zufällige Auswahl (Standard)": None,
+    "💬 Nur ChatGPT": FEEDBACK_MODE_CHATGPT,
+    "🧠 ChatGPT + AMBOSS": FEEDBACK_MODE_AMBOSS_CHATGPT,
+}
+
+current_override = st.session_state.get("feedback_mode_override")
+if current_override not in mode_options.values():
+    current_override = None
+
+labels = list(mode_options.keys())
+default_index = labels.index(next(
+    label for label, value in mode_options.items() if value == current_override
+))
+
+selected_label = st.radio(
+    "Modus für künftige Feedback-Berechnungen",
+    labels,
+    index=default_index,
+    help=(
+        "Die Einstellung wirkt sich auf alle weiteren Feedback-Anfragen dieser Sitzung aus."
+        " Bei Auswahl der Zufallsvariante wird der Modus bei der nächsten Generierung neu gelost."
+    ),
+)
+
+selected_mode = mode_options[selected_label]
+if selected_mode != current_override:
+    if selected_mode is None:
+        set_mode_override(None)
+        reset_random_mode()
+        st.success("Zufällige Auswahl reaktiviert. Der Modus wird beim nächsten Feedback neu bestimmt.")
+    else:
+        set_mode_override(selected_mode)
+        st.success(f"Übersteuerung aktiv: {selected_mode} wird verwendet.")
+
+effective_mode = st.session_state.get(SESSION_KEY_EFFECTIVE_MODE)
+if effective_mode:
+    st.caption(f"Aktuell gesetzter Modus für diese Sitzung: **{effective_mode}**")
+else:
+    st.caption("Noch kein Feedback erzeugt – der Modus wird beim ersten Aufruf festgelegt.")
 
 st.subheader("Adminmodus")
 st.write("Der Adminmodus ist aktiv. Bei Bedarf kannst du ihn hier wieder deaktivieren.")
