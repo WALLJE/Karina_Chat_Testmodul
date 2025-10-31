@@ -96,16 +96,16 @@ Strukturiere dein Feedback klar, hilfreich und differenziert – wie ein persön
 Nenne vorab das zugrunde liegende Szenario. Gib an, ob die Diagnose richtig gestellt wurde. Gib an, wieviele Termine für die Diagnostik benötigt wurden.
 
 1. Wurden im Gespräch alle relevanten anamnestischen Informationen erhoben?
-2. War die gewählte Diagnostik nachvollziehbar, vollständig und passend zur Szenariodiagnose **{diagnose_szenario}**?
+2. War die gewählte Diagnostik nachvollziehbar und passend zur Szenariodiagnose **{diagnose_szenario}**? Ist die Diagnose ausreichend gesichert?
 3. War die gewählte Diagnostik nachvollziehbar, vollständig und passend zu den Differentialdiagnosen **{user_ddx2}**?
-4. Beurteile, ob die diagnostische Strategie sinnvoll aufgebaut war, beachte dabei die Zahl der notwendigen Untersuchungstermine. Gab es unnötige Doppeluntersuchungen, sinnvolle Eskalation, fehlende Folgeuntersuchungen? Beziehe dich ausdrücklich auf die Reihenfolge und den Inhalt der Runden.
-5. Ist die finale Diagnose nachvollziehbar, insbesondere im Hinblick auf Differenzierung zu anderen Möglichkeiten?
+4. Beurteile, ob die diagnostische Strategie sinnvoll aufgebaut war, beachte dabei die Zahl der notwendigen Untersuchungstermine.  
+5. Ist die finale Diagnose nachvollziehbar, insbesondere im Hinblick auf Differenzierung zu anderen Möglichkeiten, fehlen wichtige diagnostische Schritte?
 6. Ist das Therapiekonzept leitliniengerecht, plausibel und auf die Diagnose abgestimmt?
 
 **Berücksichtige und kommentiere zusätzlich**:
-- ökologische Aspekte (z. B. überflüssige Diagnostik, zuviele Anforderungen, zuviele Termine, CO₂-Bilanz, Strahlenbelastung bei CT oder Röntgen, Ressourcenverbrauch).
-- ökonomische Sinnhaftigkeit (Kosten-Nutzen-Verhältnis)
-- Beachte und begründe auch, warum zuwenig Diagnostik unwirtschaftlich und nicht nachhaltig sein kann.
+- ökologische Aspekte, z. B. überflüssige Diagnostik, zuviele Anforderungen, zuviele Termine, CO₂-Bilanz, Strahlenbelastung bei CT oder Röntgen, Ressourcenverbrauch.
+- ökonomische Sinnhaftigkeit, Kosten-Nutzen-Verhältnis
+- Beachte und begründe auch, warum zuwenig oder fehlende Diagnostik unwirtschaftlich und nicht nachhaltig sein kann.
 """
 
     if feedback_mode == FEEDBACK_MODE_AMBOSS_CHATGPT:
