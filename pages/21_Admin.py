@@ -18,6 +18,9 @@ from module.fall_config import (
     get_behavior_fix_state,
     get_fall_fix_state,
     get_config_file_status,
+    get_feedback_mode_fix_info,
+    set_feedback_mode_fix,
+    clear_feedback_mode_fix,
     set_fixed_behavior,
     set_fixed_scenario,
 )
@@ -30,6 +33,7 @@ from module.feedback_mode import (
     reset_random_mode,
     set_mode_override,
 )
+from module.amboss_preprocessing import get_cached_summary
 
 
 copyright_footer()
@@ -97,6 +101,16 @@ if "amboss_result" in st.session_state:
                 st.code(pretty_md, language="markdown")
         else:
             st.caption("Im Session State liegt derzeit keine verwertbare AMBOSS-Antwort vor.")
+
+    summary = get_cached_summary()
+    with st.expander("🧠 GPT-Zusammenfassung der AMBOSS-Daten"):
+        if summary:
+            st.markdown(summary)
+        else:
+            st.caption(
+                "Es wurde noch keine GPT-Zusammenfassung erzeugt. Sie entsteht automatisch, "
+                "sobald das Feedback im kombinierten Modus generiert wird."
+            )
 else:
     st.info("Noch kein AMBOSS-Ergebnis im aktuellen Verlauf gespeichert.")
 
@@ -161,16 +175,33 @@ if selected_mode != current_override:
     if selected_mode is None:
         set_mode_override(None)
         reset_random_mode()
+        clear_feedback_mode_fix()
         st.success("Zufällige Auswahl reaktiviert. Der Modus wird beim nächsten Feedback neu bestimmt.")
     else:
         set_mode_override(selected_mode)
-        st.success(f"Übersteuerung aktiv: {selected_mode} wird verwendet.")
+        if selected_mode == FEEDBACK_MODE_AMBOSS_CHATGPT:
+            set_feedback_mode_fix(selected_mode)
+            st.success(
+                "Übersteuerung aktiv: ChatGPT + AMBOSS wird verwendet und für zwei Stunden persistiert."
+            )
+        else:
+            clear_feedback_mode_fix()
+            st.success(f"Übersteuerung aktiv: {selected_mode} wird verwendet.")
 
 effective_mode = st.session_state.get(SESSION_KEY_EFFECTIVE_MODE)
 if effective_mode:
     st.caption(f"Aktuell gesetzter Modus für diese Sitzung: **{effective_mode}**")
 else:
     st.caption("Noch kein Feedback erzeugt – der Modus wird beim ersten Aufruf festgelegt.")
+
+persisted_active, persisted_value, remaining = get_feedback_mode_fix_info()
+if persisted_active:
+    minutes = int(remaining.total_seconds() // 60)
+    st.caption(
+        f"Persistente Einstellung aktiv: **{persisted_value}** (läuft in ca. {minutes} Minuten ab)."
+    )
+else:
+    st.caption("Keine persistente ChatGPT+AMBOSS-Voreinstellung aktiv.")
 
 st.subheader("Adminmodus")
 st.write("Der Adminmodus ist aktiv. Bei Bedarf kannst du ihn hier wieder deaktivieren.")

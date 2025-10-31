@@ -15,6 +15,10 @@ __all__ = [
     "get_behavior_fix_state",
     "set_fixed_behavior",
     "clear_fixed_behavior",
+    "get_feedback_mode_fix_state",
+    "get_feedback_mode_fix_info",
+    "set_feedback_mode_fix",
+    "clear_feedback_mode_fix",
     "get_config_file_status",
 ]
 
@@ -34,6 +38,12 @@ _DEFAULT_CONFIG: Dict[str, Any] = {
     "behavior_fixed": False,
     "behavior": "",
     "behavior_fixed_at": "",
+    # Persistente Einstellung für den kombinierten ChatGPT+AMBOSS-Modus.
+    # Die Werte spiegeln exakt das Schema der übrigen Fixierungen wider, damit
+    # dieselben Hilfsfunktionen genutzt werden können.
+    "feedback_mode_fixed": False,
+    "feedback_mode": "",
+    "feedback_mode_fixed_at": "",
 }
 
 
@@ -43,7 +53,7 @@ def _normalize_config(data: Dict[str, Any]) -> Dict[str, Any]:
     normalized = dict(_DEFAULT_CONFIG)
     for key in normalized:
         value = data.get(key, normalized[key])
-        if key in {"fixed", "behavior_fixed"}:
+        if key in {"fixed", "behavior_fixed", "feedback_mode_fixed"}:
             normalized[key] = bool(value)
         else:
             normalized[key] = str(value) if isinstance(normalized[key], str) else value
@@ -185,6 +195,78 @@ def clear_fixed_behavior() -> None:
 
     config = _load_config()
     config.update({"behavior_fixed": False, "behavior": "", "behavior_fixed_at": ""})
+    _save_config(config)
+
+
+def get_feedback_mode_fix_state() -> Tuple[bool, str]:
+    """Liefert, ob eine persistente Feedback-Mode-Fixierung aktiv ist."""
+
+    data = _load_config()
+    active, value = _evaluate_fix_state(
+        data,
+        fixed_key="feedback_mode_fixed",
+        value_key="feedback_mode",
+        timestamp_key="feedback_mode_fixed_at",
+    )
+    return active, value
+
+
+def get_feedback_mode_fix_info() -> Tuple[bool, str, timedelta]:
+    """Gibt zusätzliche Details zur verbleibenden Laufzeit der Fixierung zurück."""
+
+    data = _load_config()
+    active, value = _evaluate_fix_state(
+        data,
+        fixed_key="feedback_mode_fixed",
+        value_key="feedback_mode",
+        timestamp_key="feedback_mode_fixed_at",
+    )
+    if not active:
+        return False, "", timedelta(0)
+
+    timestamp_raw = str(data.get("feedback_mode_fixed_at", ""))
+    try:
+        fixed_at = datetime.fromisoformat(timestamp_raw)
+        if fixed_at.tzinfo is None:
+            fixed_at = fixed_at.replace(tzinfo=timezone.utc)
+    except ValueError:
+        fixed_at = datetime.now(timezone.utc) - timedelta(hours=2)
+
+    now = datetime.now(timezone.utc)
+    remaining = (fixed_at + timedelta(hours=2)) - now
+    if remaining < timedelta(0):
+        remaining = timedelta(0)
+    return True, value, remaining
+
+
+def set_feedback_mode_fix(mode: str) -> None:
+    """Persistiert den gewünschten Feedback-Modus für zwei Stunden."""
+
+    mode_value = str(mode).strip()
+    config = _load_config()
+    config.update(
+        {
+            "feedback_mode_fixed": True,
+            "feedback_mode": mode_value,
+            "feedback_mode_fixed_at": datetime.now(timezone.utc).isoformat(),
+        }
+    )
+    # Für Fehlersuche kann hier optional ein Logging ergänzt werden, das festhält,
+    # wann die Persistierung gesetzt wurde.
+    _save_config(config)
+
+
+def clear_feedback_mode_fix() -> None:
+    """Entfernt die persistente Feedback-Mode-Fixierung."""
+
+    config = _load_config()
+    config.update(
+        {
+            "feedback_mode_fixed": False,
+            "feedback_mode": "",
+            "feedback_mode_fixed_at": "",
+        }
+    )
     _save_config(config)
 
 
