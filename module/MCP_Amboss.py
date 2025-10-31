@@ -67,7 +67,19 @@ def _parse_response(resp: requests.Response) -> dict:
     )
     parsed = _try_parse_json(payload)
     if parsed is None:
+        # Um Fehlerszenarien im Adminbereich besser nachvollziehen zu können,
+        # sichern wir den gesamten SSE-Rohtext sowie den zusammengesetzten Payload
+        # im Session State. So lassen sich die Daten später komfortabel inspizieren
+        # und bei Bedarf kopieren, ohne das Standardverhalten zu verändern.
+        st.session_state["amboss_result_raw"] = {
+            "hinweis": "JSON-Parsing der SSE-Nutzlast fehlgeschlagen.",
+            "rohtext": resp.text,
+            "zusammengefuehrter_payload": payload,
+        }
         raise ValueError("Konnte SSE-JSON nicht extrahieren.")
+    # Erfolgreiche Antworten räumen den Rohdaten-Eintrag auf, damit keine veralteten
+    # Inhalte in der Adminansicht verbleiben.
+    st.session_state.pop("amboss_result_raw", None)
     return parsed
 
 

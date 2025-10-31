@@ -88,19 +88,42 @@ def _parse_streamable_response(response: requests.Response) -> Dict[str, Any]:
             raise MCPClientError("MCP response payload must be a JSON object")
         return parsed
 
-    payload_lines = []
+    payload_lines: List[str] = []
     for line in response.text.splitlines():
         stripped = line.strip()
         if stripped.startswith("data:"):
             payload_lines.append(stripped[len("data:"):].strip())
 
     if not payload_lines:
+        # Ausführliches Debugging: Wir legen den kompletten Rohtext in einem separaten
+        # Session-State-Eintrag ab. So kann der Inhalt im Adminbereich inspiziert
+        # und kopiert werden, ohne das reguläre Parsing zu verändern. Damit bleibt
+        # klar ersichtlich, welche Daten der MCP-Dienst geliefert hat.
+        st.session_state["amboss_result_raw"] = {
+            "hinweis": "SSE enthielt keine 'data:'-Zeilen.",
+            "rohtext": response.text,
+            "extrahierte_zeilen": payload_lines,
+        }
         raise MCPClientError("Received an SSE response without any data payload to decode.")
 
     payload = "".join(payload_lines)
     parsed = _try_parse_json(payload)
     if parsed is None:
+        # Falls das JSON-Parsing scheitert, vermerken wir sowohl den originalen
+        # SSE-Text als auch den zusammengesetzten Payload. Dadurch lässt sich im
+        # Adminmodus schnell nachvollziehen, an welchem Fragment das Parsing
+        # gescheitert ist. Die ausführlichen Kommentare sollen verdeutlichen,
+        # wie sich das Verhalten bei Bedarf weiter anpassen lässt.
+        st.session_state["amboss_result_raw"] = {
+            "hinweis": "JSON-Parsing der SSE-Nutzlast fehlgeschlagen.",
+            "rohtext": response.text,
+            "extrahierte_zeilen": payload_lines,
+            "zusammengefuehrter_payload": payload,
+        }
         raise MCPClientError("Could not decode MCP SSE payload as JSON.")
+    # Sobald das Parsing wieder erfolgreich ist, räumen wir den Rohdaten-Eintrag auf,
+    # damit im Adminbereich keine überholten Informationen angezeigt werden.
+    st.session_state.pop("amboss_result_raw", None)
     return parsed
 
 
