@@ -15,6 +15,7 @@ except Exception:  # pragma: no cover - fallback when requests is unavailable
 
 from module.patient_language import get_patient_forms
 from module.MCP_Amboss import call_amboss_search
+from module.amboss_preprocessing import ensure_amboss_summary
 from module.fall_config import clear_fixed_behavior, get_behavior_fix_state
 
 
@@ -192,6 +193,30 @@ def fallauswahl_prompt(df: pd.DataFrame, szenario: str | None = None) -> None:
     elif geschlecht not in {"m", "w"}:
         geschlecht = ""
     st.session_state.patient_gender = geschlecht
+
+    # Sobald Szenario, AMBOSS-Rohdaten und ein OpenAI-Client vorliegen, wird die
+    # kompakte Zusammenfassung direkt erzeugt. Dadurch steht sie beim späteren
+    # Feedback ohne Verzögerung bereit. Für detailliertes Debugging kann hier
+    # temporär ein ``st.write`` aktiviert werden, um den Aufruf zu protokollieren.
+    client = st.session_state.get("openai_client")
+    patient_age_for_summary = st.session_state.get("patient_age")
+    if patient_age_for_summary is None:
+        # Falls das Alter noch nicht endgültig bestimmt ist, nutzen wir den
+        # Basiswert aus dem Szenario. Bei Bedarf kann hier ein ``st.write``
+        # ergänzt werden, um fehlende Altersangaben frühzeitig zu erkennen.
+        patient_age_for_summary = st.session_state.get("patient_alter_basis")
+    if client and st.session_state.diagnose_szenario and patient_age_for_summary is not None:
+        try:
+            ensure_amboss_summary(
+                client,
+                diagnose_szenario=st.session_state.diagnose_szenario,
+                patient_age=int(patient_age_for_summary),
+            )
+        except Exception as exc:  # pragma: no cover - reine Laufzeitfehlerbehandlung
+            st.error(
+                "❌ Die Hintergrund-Zusammenfassung des AMBOSS-Payloads ist fehlgeschlagen: "
+                f"{exc}"
+            )
 
 
 def prepare_fall_session_state(
