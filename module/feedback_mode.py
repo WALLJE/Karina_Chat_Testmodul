@@ -14,6 +14,8 @@ from typing import Optional
 
 import streamlit as st
 
+from module.fall_config import clear_feedback_mode_fix, get_feedback_mode_fix_state
+
 # Konstante Bezeichner, die überall in der Anwendung wiederverwendet werden.
 # Durch die zentrale Definition vermeiden wir Tippfehler und behalten die
 # mögliche Werte-Menge im Blick. Wenn in Zukunft weitere Modi hinzukommen,
@@ -42,9 +44,12 @@ def determine_feedback_mode() -> str:
     Ablauf:
     1. Falls im Session State eine Admin-Übersteuerung hinterlegt ist, wird
        diese direkt übernommen.
-    2. Ansonsten wird geprüft, ob bereits ein Modus für die aktuelle Sitzung
+    2. Wenn keine Übersteuerung aktiv ist, prüfen wir eine optionale
+       Persistierung aus ``fall_config.json``. Sie wird genutzt, wenn der
+       kombinierte Modus administrativ für zwei Stunden festgelegt wurde.
+    3. Ansonsten wird geprüft, ob bereits ein Modus für die aktuelle Sitzung
        gespeichert wurde. Wenn ja, wird er beibehalten.
-    3. Liegt noch kein Modus vor, erfolgt eine zufällige Auswahl.
+    4. Liegt noch kein Modus vor, erfolgt eine zufällige Auswahl.
 
     Jeder Pfad speichert den finalen Modus unter ``SESSION_KEY_EFFECTIVE_MODE``.
     Auf diese Weise können andere Module (z. B. Supabase-Speicherung oder UI)
@@ -55,11 +60,20 @@ def determine_feedback_mode() -> str:
     if _is_valid_mode(override):
         mode = override
     else:
-        current = st.session_state.get(SESSION_KEY_EFFECTIVE_MODE)
-        if _is_valid_mode(current):
-            mode = current
+        persisted_active, persisted_mode = get_feedback_mode_fix_state()
+        if persisted_active and _is_valid_mode(persisted_mode):
+            mode = persisted_mode
         else:
-            mode = random.choice(_AVAILABLE_MODES)
+            if persisted_active and not _is_valid_mode(persisted_mode):
+                # Sollte eine veraltete Angabe im Speicher liegen, wird sie
+                # bereinigt. Für Debugging kann hier ein ``st.write`` aktiviert
+                # werden, um den fehlerhaften Wert anzuzeigen.
+                clear_feedback_mode_fix()
+            current = st.session_state.get(SESSION_KEY_EFFECTIVE_MODE)
+            if _is_valid_mode(current):
+                mode = current
+            else:
+                mode = random.choice(_AVAILABLE_MODES)
 
     st.session_state[SESSION_KEY_EFFECTIVE_MODE] = mode
     return mode
