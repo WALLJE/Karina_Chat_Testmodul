@@ -32,12 +32,13 @@ def _format_amboss_result(data: Any) -> str:
         text = json.dumps(data, ensure_ascii=False, indent=2)
     except TypeError:
         text = str(data)
-
-    max_length = 4000
-    if len(text) > max_length:
+    
+    # Längenlimit entfernt
+    # max_length = 4000
+    # if len(text) > max_length:
         # Debug-Hinweis: Für eine ausführliche Analyse kann dieser Abschnitt
         # temporär deaktiviert oder der Grenzwert erhöht werden.
-        text = text[:max_length] + "\n\n[Ausgabe wegen Länge gekürzt]"
+        # text = text[:max_length] + "\n\n[Ausgabe wegen Länge gekürzt]"
     return text
 
 
