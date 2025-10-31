@@ -114,6 +114,22 @@ if "amboss_result" in st.session_state:
 else:
     st.info("Noch kein AMBOSS-Ergebnis im aktuellen Verlauf gespeichert.")
 
+# Unabhängig vom Parsing-Erfolg kann hier ein Rohdatenschnappschuss aus dem MCP landen.
+# Der separate Expander ermöglicht Administrator*innen, problematische Antworten
+# komfortabel zu inspizieren und für die Fehlersuche zu kopieren. Die Daten stammen
+# direkt aus dem Session State und werden nur angezeigt, wenn zuvor ein Fehler
+# beim Parsing protokolliert wurde.
+raw_debug_data = st.session_state.get("amboss_result_raw")
+if raw_debug_data:
+    with st.expander("🪵 AMBOSS-Rohdaten (Debug)"):
+        if isinstance(raw_debug_data, dict):
+            st.json(raw_debug_data)
+        else:
+            # Sollte der Eintrag ausnahmsweise kein Dictionary sein, zeigen wir ihn
+            # als Klartext an. Damit bleibt die Darstellung robust, auch falls
+            # künftig andere Module den Debug-Eintrag erweitern.
+            st.code(str(raw_debug_data), language="json")
+
 config_ok, config_message = get_config_file_status()
 if config_ok:
     st.success(f"🗂️ Konfigurationsdatei: {config_message}")
