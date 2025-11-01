@@ -6,6 +6,7 @@ from openai import RateLimitError
 from module.sidebar import show_sidebar
 from module.footer import copyright_footer
 from module.offline import display_offline_banner, is_offline
+from module.loading_indicator import task_spinner
 
 copyright_footer()
 show_sidebar()
@@ -50,15 +51,27 @@ elif fragen_gestellt:
                     st.session_state.diagnose_features,
                     st.session_state.get("koerper_befund_tip", ""),
                 )
+                st.session_state.koerper_befund = koerper_befund
             else:
-                with st.spinner(f"{st.session_state.patient_name} wird untersucht..."):
+                untersuchungsaufgaben = [
+                    "Sammle anamnestische Schlüsselhinweise",
+                    "Berechne passende Untersuchungsbefunde",
+                    "Bereite Ergebnistext für die Anzeige auf",
+                ]
+                with task_spinner(
+                    f"{st.session_state.patient_name} wird untersucht...",
+                    untersuchungsaufgaben,
+                ) as indikator:
+                    indikator.advance(1)
                     koerper_befund = generiere_koerperbefund(
                         st.session_state["openai_client"],
                         st.session_state.diagnose_szenario,
                         st.session_state.diagnose_features,
                         st.session_state.get("koerper_befund_tip", ""),
                     )
-            st.session_state.koerper_befund = koerper_befund
+                    indikator.advance(1)
+                    st.session_state.koerper_befund = koerper_befund
+                    indikator.advance(1)
             st.session_state.koerper_befund_generating = False
             if is_offline():
                 st.info(
@@ -86,15 +99,27 @@ elif fragen_gestellt:
                     st.session_state.diagnose_features,
                     st.session_state.get("koerper_befund_tip", "")
                 )
+                st.session_state.koerper_befund = koerper_befund
             else:
-                with st.spinner(f"{st.session_state.patient_name} wird untersucht..."):
+                untersuchungsaufgaben = [
+                    "Sammle anamnestische Schlüsselhinweise",
+                    "Berechne passende Untersuchungsbefunde",
+                    "Bereite Ergebnistext für die Anzeige auf",
+                ]
+                with task_spinner(
+                    f"{st.session_state.patient_name} wird untersucht...",
+                    untersuchungsaufgaben,
+                ) as indikator:
+                    indikator.advance(1)
                     koerper_befund = generiere_koerperbefund(
                         st.session_state["openai_client"],
                         st.session_state.diagnose_szenario,
                         st.session_state.diagnose_features,
                         st.session_state.get("koerper_befund_tip", "")
                     )
-            st.session_state.koerper_befund = koerper_befund
+                    indikator.advance(1)
+                    st.session_state.koerper_befund = koerper_befund
+                    indikator.advance(1)
             st.session_state.koerper_befund_generating = False
             if is_offline():
                 st.info("🔌 Offline-Befund geladen. Sobald der Online-Modus aktiv ist, kannst du einen KI-generierten Befund abrufen.")

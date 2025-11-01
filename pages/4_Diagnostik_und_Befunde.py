@@ -4,6 +4,7 @@ from module.footer import copyright_footer
 from diagnostikmodul import diagnostik_und_befunde_routine
 from befundmodul import generiere_befund
 from module.offline import display_offline_banner, is_offline
+from module.loading_indicator import task_spinner
 
 show_sidebar()
 display_offline_banner()
@@ -53,10 +54,19 @@ def starte_automatische_befundgenerierung_page(client) -> None:
         szenario = st.session_state.get("diagnose_szenario", "")
         if is_offline():
             befund = generiere_befund(client, szenario, diagnostik_text)
+            aktualisiere_kumulative_befunde_page(befund)
         else:
-            with st.spinner("Befunde werden automatisch generiert..."):
+            ladeaufgaben = [
+                "Lese Falldaten ein",
+                "Analysiere diagnostische Eingaben",
+                "Erstelle strukturierten Befund",
+            ]
+            with task_spinner("Befunde werden automatisch generiert...", ladeaufgaben) as indikator:
+                indikator.advance(1)
                 befund = generiere_befund(client, szenario, diagnostik_text)
-        aktualisiere_kumulative_befunde_page(befund)
+                indikator.advance(1)
+                aktualisiere_kumulative_befunde_page(befund)
+                indikator.advance(1)
     except Exception as error:
         st.session_state["befund_generierung_gescheitert"] = True
         st.session_state["befund_generierungsfehler"] = str(error)
@@ -127,11 +137,19 @@ if (
 
                     if is_offline():
                         befund = generiere_befund(client, diagnose_szenario, diagnostik_eingabe)
+                        aktualisiere_kumulative_befunde_page(befund)
                     else:
-                        with st.spinner("Befunde werden erneut generiert..."):
+                        ladeaufgaben = [
+                            "Bereite diagnostische Eingaben auf",
+                            "Führe erneute Analyse durch",
+                            "Formuliere aktualisierten Befund",
+                        ]
+                        with task_spinner("Befunde werden erneut generiert...", ladeaufgaben) as indikator:
+                            indikator.advance(1)
                             befund = generiere_befund(client, diagnose_szenario, diagnostik_eingabe)
-
-                    aktualisiere_kumulative_befunde_page(befund)
+                            indikator.advance(1)
+                            aktualisiere_kumulative_befunde_page(befund)
+                            indikator.advance(1)
                     st.session_state["befund_generierung_gescheitert"] = False
                     st.session_state.pop("befund_generierungsfehler", None)
                     st.session_state["befund_generating"] = False
@@ -201,10 +219,19 @@ if (
         client = st.session_state.get("openai_client")
         if is_offline():
             befund = generiere_befund(client, szenario, neue_diagnostik)
+            st.session_state[f"befunde_runde_{neuer_termin}"] = befund
         else:
-            with st.spinner("GPT erstellt Befunde..."):
+            ladeaufgaben = [
+                "Übertrage neue Diagnostik an das Modell",
+                "Stimme Ergebnisse mit bisherigen Befunden ab",
+                "Bereite Rückmeldung für die Anzeige auf",
+            ]
+            with task_spinner("GPT erstellt Befunde...", ladeaufgaben) as indikator:
+                indikator.advance(1)
                 befund = generiere_befund(client, szenario, neue_diagnostik)
-        st.session_state[f"befunde_runde_{neuer_termin}"] = befund
+                indikator.advance(1)
+                st.session_state[f"befunde_runde_{neuer_termin}"] = befund
+                indikator.advance(1)
         st.session_state["diagnostik_runden_gesamt"] = neuer_termin
         st.session_state["diagnostik_aktiv"] = False
         if is_offline():

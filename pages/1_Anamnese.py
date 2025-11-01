@@ -9,6 +9,7 @@ from module.offline import (
     get_offline_patient_reply,
     is_offline,
 )
+from module.loading_indicator import task_spinner
 
 copyright_footer()
 show_sidebar()
@@ -57,15 +58,23 @@ if submit_button and user_input:
         reply = get_offline_patient_reply(st.session_state.get("patient_name", ""))
         st.session_state.messages.append({"role": "assistant", "content": reply})
     else:
-        with st.spinner(f"{st.session_state.patient_name} antwortet..."):
+        ladeaufgaben = [
+            "Übermittle Frage an das Sprachmodell",
+            "Warte auf Antwortgenerierung",
+            "Bereite Antwort für die Anzeige auf",
+        ]
+        with task_spinner(f"{st.session_state.patient_name} antwortet...", ladeaufgaben) as indikator:
             try:
+                indikator.advance(1)
                 response = client.chat.completions.create(
                     model="gpt-4",
                     messages=st.session_state.messages,
                     temperature=0.6
                 )
+                indikator.advance(1)
                 reply = response.choices[0].message.content
                 st.session_state.messages.append({"role": "assistant", "content": reply})
+                indikator.advance(1)
             except RateLimitError:
                 st.error("🚫 Die Anfrage konnte nicht verarbeitet werden, da die OpenAI-API derzeit überlastet ist. Bitte versuchen Sie es in einigen Minuten erneut.")
     st.rerun()

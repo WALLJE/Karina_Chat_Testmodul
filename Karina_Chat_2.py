@@ -29,6 +29,7 @@ from module.offline import display_offline_banner, is_offline
 from module.gpt_feedback import (
     speichere_gpt_feedback_in_supabase as speichere_feedback_mit_modus,
 )
+from module.loading_indicator import task_spinner
 from module.fallverwaltung import (
     DEFAULT_FALLDATEI_URL,
     fallauswahl_prompt,
@@ -111,10 +112,19 @@ def starte_automatische_befundgenerierung() -> None:
         diagnose_szenario = st.session_state.get("diagnose_szenario", "")
         if is_offline():
             befund = generiere_befund(client, diagnose_szenario, diagnostik_text)
+            aktualisiere_kumulative_befunde(befund)
         else:
-            with st.spinner("Befunde werden automatisch generiert..."):
+            ladeaufgaben = [
+                "Lade Falldaten aus dem aktuellen Szenario",
+                "Analysiere diagnostische Eingaben",
+                "Formuliere strukturierten Befund",
+            ]
+            with task_spinner("Befunde werden automatisch generiert...", ladeaufgaben) as indikator:
+                indikator.advance(1)
                 befund = generiere_befund(client, diagnose_szenario, diagnostik_text)
-        aktualisiere_kumulative_befunde(befund)
+                indikator.advance(1)
+                aktualisiere_kumulative_befunde(befund)
+                indikator.advance(1)
     except Exception as error:
         # Für gezielte Fehlersuche wird der Hinweis gespeichert und der Fallback-Button freigegeben.
         st.session_state["befund_generierung_gescheitert"] = True
@@ -233,14 +243,21 @@ with st.form(key="eingabe_formular", clear_on_submit=True):
 
 if submit_button and user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
-    with st.spinner(f"{st.session_state.patient_name} antwortet..."):
+    dialog_aufgaben = [
+        "Übermittle Frage an das Sprachmodell",
+        "Warte auf Antwortgenerierung",
+        "Bereite Ausgabe für den Chat vor",
+    ]
+    with task_spinner(f"{st.session_state.patient_name} antwortet...", dialog_aufgaben) as indikator:
         try:
-            init_token_counters()    
+            init_token_counters()
+            indikator.advance(1)
             response = client.chat.completions.create(
                 model="gpt-4",
                 messages=st.session_state.messages,
                 temperature=0.6
             )
+            indikator.advance(1)
             add_usage(
                 prompt_tokens=response.usage.prompt_tokens,
                 completion_tokens=response.usage.completion_tokens,
@@ -248,6 +265,7 @@ if submit_button and user_input:
             )
             reply = response.choices[0].message.content
             st.session_state.messages.append({"role": "assistant", "content": reply})
+            indikator.advance(1)
         except RateLimitError:
             st.error("🚫 Die Anfrage konnte nicht verarbeitet werden, da die OpenAI-API derzeit überlastet ist. Bitte versuchen Sie es in einigen Minuten erneut.")
     st.rerun()
@@ -273,15 +291,27 @@ if anzahl_fragen > 0:
                     st.session_state.diagnose_features,
                     st.session_state.koerper_befund_tip,
                 )
+                st.session_state.koerper_befund = koerper_befund
             else:
-                with st.spinner(f"{st.session_state.patient_name} wird untersucht..."):
+                untersuchungsaufgaben = [
+                    "Sammle anamnestische Schlüsselhinweise",
+                    "Berechne passende Untersuchungsbefunde",
+                    "Bereite Ergebnistext für die Anzeige auf",
+                ]
+                with task_spinner(
+                    f"{st.session_state.patient_name} wird untersucht...",
+                    untersuchungsaufgaben,
+                ) as indikator:
+                    indikator.advance(1)
                     koerper_befund = generiere_koerperbefund(
                         client,
                         st.session_state.diagnose_szenario,
                         st.session_state.diagnose_features,
                         st.session_state.koerper_befund_tip,
                     )
-            st.session_state.koerper_befund = koerper_befund
+                    indikator.advance(1)
+                    st.session_state.koerper_befund = koerper_befund
+                    indikator.advance(1)
             st.session_state.koerper_befund_generating = False
             if is_offline():
                 st.info(
@@ -319,15 +349,27 @@ if anzahl_fragen > 0:
                         st.session_state.diagnose_features,
                         st.session_state.koerper_befund_tip
                     )
+                    st.session_state.koerper_befund = koerper_befund
                 else:
-                    with st.spinner(f"{st.session_state.patient_name} wird untersucht..."):
+                    untersuchungsaufgaben = [
+                        "Sammle anamnestische Schlüsselhinweise",
+                        "Berechne passende Untersuchungsbefunde",
+                        "Bereite Ergebnistext für die Anzeige auf",
+                    ]
+                    with task_spinner(
+                        f"{st.session_state.patient_name} wird untersucht...",
+                        untersuchungsaufgaben,
+                    ) as indikator:
+                        indikator.advance(1)
                         koerper_befund = generiere_koerperbefund(
                             client,
                             st.session_state.diagnose_szenario,
                             st.session_state.diagnose_features,
                             st.session_state.koerper_befund_tip
                         )
-                st.session_state.koerper_befund = koerper_befund
+                        indikator.advance(1)
+                        st.session_state.koerper_befund = koerper_befund
+                        indikator.advance(1)
                 st.session_state.koerper_befund_generating = False
                 st.rerun()
             except RateLimitError:
@@ -402,11 +444,19 @@ if (
 
                     if is_offline():
                         befund = generiere_befund(client, diagnose_szenario, diagnostik_eingabe)
+                        aktualisiere_kumulative_befunde(befund)
                     else:
-                        with st.spinner("Befunde werden erneut generiert..."):
+                        ladeaufgaben = [
+                            "Bereite diagnostische Eingaben auf",
+                            "Rekontextualisiere Fallinformationen",
+                            "Formuliere aktualisierten Befund",
+                        ]
+                        with task_spinner("Befunde werden erneut generiert...", ladeaufgaben) as indikator:
+                            indikator.advance(1)
                             befund = generiere_befund(client, diagnose_szenario, diagnostik_eingabe)
-
-                    aktualisiere_kumulative_befunde(befund)
+                            indikator.advance(1)
+                            aktualisiere_kumulative_befunde(befund)
+                            indikator.advance(1)
                     st.session_state["befund_generierung_gescheitert"] = False
                     st.session_state.pop("befund_generierungsfehler", None)
                     st.session_state["befund_generating"] = False
@@ -471,9 +521,17 @@ if (
         st.session_state[f"diagnostik_runde_{neuer_termin}"] = neue_diagnostik
 
         szenario = st.session_state.get("diagnose_szenario", "")
-        with st.spinner("GPT erstellt Befunde..."):
+        ladeaufgaben = [
+            "Übertrage neue Diagnostik an das Modell",
+            "Vergleiche Eingaben mit bisherigen Befunden",
+            "Generiere aktualisierte Rückmeldung",
+        ]
+        with task_spinner("GPT erstellt Befunde...", ladeaufgaben) as indikator:
+            indikator.advance(1)
             befund = generiere_befund(client, szenario, neue_diagnostik)
+            indikator.advance(1)
             st.session_state[f"befunde_runde_{neuer_termin}"] = befund
+            indikator.advance(1)
             st.session_state["diagnostik_runden_gesamt"] = neuer_termin
             st.session_state["diagnostik_aktiv"] = False
             st.rerun()
