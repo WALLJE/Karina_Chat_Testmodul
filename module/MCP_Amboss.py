@@ -22,6 +22,8 @@ zusätzliche ``st.write``-Ausgaben aktiviert werden, die aktuell aus Gründen de
 from __future__ import annotations
 import json
 from typing import Optional, Dict, Any, Tuple
+import time
+
 import requests
 import streamlit as st
 
@@ -55,6 +57,29 @@ def _looks_like_json(value: str) -> bool:
     return (stripped.startswith("{") and stripped.endswith("}")) or (
         stripped.startswith("[") and stripped.endswith("]")
     )
+
+
+def _recover_partial_json(fragment: str) -> Optional[Any]:
+    """Versucht, aus einem abgeschnittenen JSON-Fragment einen verwertbaren Teil zu extrahieren."""
+
+    # Wir prüfen ausschließlich Fragmente, die mit ``}`` oder ``]`` enden. Nur dann
+    # besteht eine realistische Chance, dass zumindest ein Teilobjekt vollständig
+    # vorliegt. Der längste, gültige Präfix wird beibehalten, kürzere Varianten
+    # dienen als Fallback für stark fragmentierte Antworten.
+    stripped = fragment.strip()
+    if not stripped:
+        return None
+
+    candidate_indices = [
+        index for index, char in enumerate(stripped) if char in {"}", "]"}
+    ]
+    for index in reversed(candidate_indices):
+        candidate = stripped[: index + 1]
+        parsed = _try_parse_json(candidate)
+        if parsed is not None:
+            return parsed
+
+    return None
 
 
 def _peel_json(obj_or_str: Any, *, max_depth: int = 4) -> Tuple[Any, int]:
@@ -147,11 +172,55 @@ def _parse_response(resp: requests.Response) -> dict:
                     result_object = current
 
         if result_object is None:
-            st.session_state["amboss_result_raw"] = {
-                "hinweis": "Keine verwertbare JSON-RPC-Nutzlast in der SSE-Antwort gefunden.",
-                "rohtext": text_body,
+            # Sicherung: Wir bewahren das erste verwertbare Fragment auf, damit die
+            # Anwendung trotz abgebrochener Serverantwort weiterarbeiten kann. Das
+            # Ergebnis wird klar als unvollständig markiert, sodass nachgelagerte
+            # Schritte reagieren können.
+            fallback_payload: Optional[str] = next(
+                (payload for payload in events if payload and payload != "[DONE]"),
+                None,
+            )
+            partial_object = (
+                _recover_partial_json(fallback_payload) if fallback_payload else None
+            )
+
+            fallback_result: Dict[str, Any] = {
+                "jsonrpc": "2.0",
+                "id": None,
+                "result": {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": (
+                                partial_object
+                                if partial_object is not None
+                                else fallback_payload
+                                if fallback_payload is not None
+                                else ""
+                            ),
+                        }
+                    ]
+                },
+                "meta": {
+                    "hinweis": "Fragment aus abgebrochener SSE-Antwort rekonstruiert.",
+                    "unvollstaendig": True,
+                },
             }
-            raise ValueError("Konnte keine JSON-RPC-Nutzlast aus SSE extrahieren.")
+
+            st.session_state["amboss_result_raw"] = {
+                "hinweis": "Keine vollständige JSON-RPC-Nutzlast in der SSE-Antwort gefunden.",
+                "rohtext": text_body,
+                "fragment": fallback_payload,
+                "fragment_teilobjekt": partial_object,
+            }
+            st.session_state["amboss_result_unvollstaendig"] = True
+            st.session_state["amboss_result_sicherung"] = {
+                "hinweis": "Teilantwort aufgrund eines Verbindungsabbruchs gespeichert.",
+                "fragment_quelle": "sse_event",
+                "fragment_text": fallback_payload,
+                "fragment_teilobjekt": partial_object,
+            }
+            return fallback_result
 
         # Falls die eigentliche Information nochmals als String vorliegt, versuchen
         # wir auch diese Ebene zu entpacken, damit nachgelagerte Module direkt mit
@@ -170,6 +239,8 @@ def _parse_response(resp: requests.Response) -> dict:
             # genau vorliegt. Wir lassen in diesem Fall den Originaltext unangetastet.
             pass
 
+        st.session_state.pop("amboss_result_unvollstaendig", None)
+        st.session_state.pop("amboss_result_sicherung", None)
         st.session_state.pop("amboss_result_raw", None)
         return result_object
 
@@ -191,12 +262,19 @@ def call_amboss_search(
     timeout: float = 30.0,
     language: str = "de",
     extra_headers: Optional[Dict[str, str]] = None,
+    max_retries: int = 0,
+    retry_delay_seconds: float = 0.0,
 ) -> dict:
     """Ruft ``search_article_sections`` auf und legt das Roh-JSON im Session State ab.
 
     Falls kein Token übergeben wird, wird automatisch ``st.secrets["Amboss_Token"]``
     verwendet. Sowohl die Nutzlast als auch das Ergebnis werden im ``st.session_state``
     gespeichert, damit andere Module direkt darauf zugreifen können.
+
+    Parameter ``max_retries`` erlaubt optional erneute Versuche, falls Netzwerkfehler
+    oder unerwartete Antwortformate auftreten. Mit ``retry_delay_seconds`` kann eine
+    Wartezeit zwischen den Versuchen hinterlegt werden, um den Server nicht sofort
+    erneut zu belasten. Bei ``max_retries=0`` bleibt das bisherige Verhalten unverändert.
     """
     token = token or st.secrets.get("Amboss_Token")
     if not token:
@@ -219,12 +297,57 @@ def call_amboss_search(
     # Verarbeitung weiter. Wer experimentell live im Stream mitlesen möchte, kann
     # ``stream=True`` ergänzen und in ``_parse_response`` auf ``resp.iter_lines``
     # umstellen. Für die reguläre Nutzung ist das vollständige Puffern jedoch stabiler.
-    resp = requests.post(url, headers=headers, data=json.dumps(payload), timeout=timeout)
-    resp.raise_for_status()
-    result = _parse_response(resp)
+    attempts_total = max(0, int(max_retries)) + 1
+    delay_seconds = max(0.0, float(retry_delay_seconds))
 
-    st.session_state["amboss_result"] = result
-    return result
+    # Dieses Dictionary speichert Details zum letzten Fehler. So lässt sich in der
+    # App nachvollziehen, warum ggf. mehrere Versuche notwendig waren. Nach einem
+    # erfolgreichen Durchlauf wird der Eintrag entfernt.
+    last_error_info: Optional[Dict[str, Any]] = None
+
+    for attempt_index in range(1, attempts_total + 1):
+        try:
+            resp = requests.post(
+                url,
+                headers=headers,
+                data=json.dumps(payload),
+                timeout=timeout,
+            )
+            resp.raise_for_status()
+            result = _parse_response(resp)
+        except (requests.RequestException, ValueError) as exc:
+            # Fehlerfall: Wir notieren Versuchszähler und Fehlertyp für spätere Analyse.
+            last_error_info = {
+                "versuch": attempt_index,
+                "max_versuche": attempts_total,
+                "fehlertyp": type(exc).__name__,
+                "fehlermeldung": str(exc),
+            }
+            st.session_state["amboss_letzter_fehlversuch"] = last_error_info
+
+            if attempt_index < attempts_total:
+                # Bei Bedarf kann hier temporär ``st.write(last_error_info)``
+                # aktiviert werden, um die genauen Fehlermeldungen direkt in der
+                # Oberfläche einzusehen.
+                if delay_seconds > 0.0:
+                    time.sleep(delay_seconds)
+                continue
+
+            # Sind alle Versuche ausgeschöpft, wird der ursprüngliche Fehler erneut
+            # ausgelöst. Die letzte Fehlermeldung bleibt im Session State erhalten und
+            # unterstützt beim Debugging.
+            raise
+        else:
+            # Erfolgreicher Durchlauf: Wir räumen eventuelle Fehlereinträge wieder auf,
+            # damit andere Module ausschließlich gültige Ergebnisse vorfinden.
+            st.session_state.pop("amboss_letzter_fehlversuch", None)
+            st.session_state["amboss_result"] = result
+            return result
+
+    # Defensive Rückgabe, sollte der Kontrollfluss unerwartet hier landen. Durch die
+    # Schleifenlogik dürfte dieser Punkt zwar nie erreicht werden, das Statement macht
+    # für statische Codeprüfungen deutlich, dass kein ``None`` zurückgegeben wird.
+    raise RuntimeError("Unerwarteter Kontrollfluss in call_amboss_search")
 
 
 if __name__ == "__main__":

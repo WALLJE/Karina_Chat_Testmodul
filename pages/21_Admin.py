@@ -114,6 +114,27 @@ if "amboss_result" in st.session_state:
 else:
     st.info("Noch kein AMBOSS-Ergebnis im aktuellen Verlauf gespeichert.")
 
+# Wenn lediglich ein fragmentarisches Ergebnis vorliegt, wird dieses klar
+# gekennzeichnet. Administrator*innen sehen zusätzlich das konservierte
+# Teilfragment, um bei Bedarf eigenständig zu prüfen, ob daraus weiterer
+# Nutzen gezogen werden kann.
+if st.session_state.get("amboss_result_unvollstaendig"):
+    sicherungshinweis = st.session_state.get(
+        "amboss_result_sicherung",
+        {"hinweis": "Fragmentierte Antwort erkannt."},
+    )
+    st.warning(
+        "⚠️ AMBOSS-Ergebnis unvollständig: {msg}".format(
+            msg=sicherungshinweis.get(
+                "hinweis",
+                "Teilantwort gesichert, siehe Details unten.",
+            )
+        )
+    )
+
+    with st.expander("🧩 Gesicherte Teilantwort"):
+        st.json(sicherungshinweis)
+
 # Unabhängig vom Parsing-Erfolg kann hier ein Rohdatenschnappschuss aus dem MCP landen.
 # Der separate Expander ermöglicht Administrator*innen, problematische Antworten
 # komfortabel zu inspizieren und für die Fehlersuche zu kopieren. Die Daten stammen
