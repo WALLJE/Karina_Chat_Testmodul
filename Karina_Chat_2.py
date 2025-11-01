@@ -64,6 +64,68 @@ def initialisiere_session_state():
     st.session_state.setdefault("final_diagnose", "") #test
     st.session_state.setdefault("offline_mode", False)
     st.session_state.setdefault("koerper_befund_generating", False)
+    st.session_state.setdefault("befund_generating", False)
+    st.session_state.setdefault("befund_generierung_gescheitert", False)
+
+
+def aktualisiere_kumulative_befunde(neuer_befund: str) -> None:
+    """Sichert den jüngsten Befund sowie eine kumulierte Übersicht im ``session_state``."""
+
+    # Der Primärbefund wird für die direkte Anzeige gespeichert.
+    st.session_state["befunde"] = neuer_befund
+
+    # Vorbereitung der kumulativen Darstellung aller Termine.
+    kumulative_passagen = [f"### Termin 1\n{neuer_befund}".strip()]
+    gesamt = st.session_state.get("diagnostik_runden_gesamt", 1)
+    for termin in range(2, gesamt + 1):
+        befund_key = f"befunde_runde_{termin}"
+        gespeicherter_befund = st.session_state.get(befund_key, "").strip()
+        if gespeicherter_befund:
+            kumulative_passagen.append(f"### Termin {termin}\n{gespeicherter_befund}")
+
+    # Ablage der Texte für Feedback- und Exportfunktionen.
+    kumuliert = "\n---\n".join(kumulative_passagen).strip()
+    st.session_state["gpt_befunde"] = neuer_befund
+    st.session_state["gpt_befunde_kumuliert"] = kumuliert
+
+
+def starte_automatische_befundgenerierung() -> None:
+    """Löst ohne zusätzlichen Klick die Befundgenerierung aus, sobald alle Eingaben vorliegen."""
+
+    if st.session_state.get("befund_generating", False):
+        return  # Eine laufende Generierung wird nicht erneut angestoßen.
+    if st.session_state.get("befunde"):
+        return  # Bereits vorhandene Befunde müssen nicht erneut erzeugt werden.
+    if st.session_state.get("befund_generierung_gescheitert", False):
+        return  # Bei Fehlern wird der Fallback-Button sichtbar, automatische Versuche pausieren.
+
+    diagnostik_text = st.session_state.get("user_diagnostics", "").strip()
+    ddx_text = st.session_state.get("user_ddx2", "").strip()
+    if not diagnostik_text or not ddx_text:
+        return  # Ohne vollständige Eingaben ist kein zielführender Befund möglich.
+
+    st.session_state["befund_generating"] = True
+    st.session_state.pop("befund_generierungsfehler", None)
+
+    try:
+        diagnose_szenario = st.session_state.get("diagnose_szenario", "")
+        if is_offline():
+            befund = generiere_befund(client, diagnose_szenario, diagnostik_text)
+        else:
+            with st.spinner("Befunde werden automatisch generiert..."):
+                befund = generiere_befund(client, diagnose_szenario, diagnostik_text)
+        aktualisiere_kumulative_befunde(befund)
+    except Exception as error:
+        # Für gezielte Fehlersuche wird der Hinweis gespeichert und der Fallback-Button freigegeben.
+        st.session_state["befund_generierung_gescheitert"] = True
+        st.session_state["befund_generierungsfehler"] = str(error)
+    else:
+        st.session_state["befund_generierung_gescheitert"] = False
+    finally:
+        st.session_state["befund_generating"] = False
+
+    if not st.session_state.get("befund_generierung_gescheitert", False):
+        st.rerun()
 
 def speichere_gpt_feedback_in_supabase():
     """Leitet die Supabase-Speicherung an das neue Hilfsmodul weiter."""
@@ -291,13 +353,15 @@ if "koerper_befund" in st.session_state:
         if submitted_diag:
             st.session_state.user_ddx2 = sprach_check(ddx_input2, client)
             st.session_state.user_diagnostics = sprach_check(diag_input2, client)
-            # st.success("✅ Angaben gespeichert. Befunde können jetzt generiert werden.")
-            st.rerun()
+            # Nach dem Sichern der Eingaben wird der automatische Befundlauf gestartet.
+            starte_automatische_befundgenerierung()
 
     else:
         # st.markdown("📝 **Ihre gespeicherten Eingaben:**")
         st.markdown(f"**Differentialdiagnosen:**  \n{st.session_state.user_ddx2}")
         st.markdown(f"**Diagnostische Maßnahmen:**  \n{st.session_state.user_diagnostics}")
+
+    starte_automatische_befundgenerierung()
 
 else:
     st.subheader("Differentialdiagnosen und diagnostische Maßnahmen")
@@ -317,25 +381,41 @@ if (
     if "befunde" in st.session_state:
         # st.success("✅ Befunde wurden erstellt.")
         st.markdown(st.session_state.befunde)
+        if st.session_state.get("befund_generierungsfehler"):
+            st.info(
+                "ℹ️ Der automatische Lauf meldete zuvor einen Fehler. Durch den gespeicherten Befund wurde der Hinweis"
+                " für Transparenz belassen."
+            )
     else:
-        if st.button("🧪 Befunde generieren lassen"):
-            from befundmodul import generiere_befund
+        # Falls gewünscht, kann hier zur Fehlersuche eine Debug-Ausgabe aktiviert werden.
+        if st.session_state.get("befund_generierungsfehler"):
+            st.error(
+                "❌ Automatische Befundgenerierung fehlgeschlagen: "
+                f"{st.session_state['befund_generierungsfehler']}"
+            )
+        if st.session_state.get("befund_generierung_gescheitert", False):
+            if st.button("🧪 Befunde generieren lassen"):
+                try:
+                    st.session_state["befund_generating"] = True
+                    diagnostik_eingabe = st.session_state.user_diagnostics
+                    diagnose_szenario = st.session_state.diagnose_szenario
 
-            try:
-                diagnostik_eingabe = st.session_state.user_diagnostics
-                diagnose_szenario = st.session_state.diagnose_szenario
+                    if is_offline():
+                        befund = generiere_befund(client, diagnose_szenario, diagnostik_eingabe)
+                    else:
+                        with st.spinner("Befunde werden erneut generiert..."):
+                            befund = generiere_befund(client, diagnose_szenario, diagnostik_eingabe)
 
-                with st.spinner("Befunde werden generiert..."):
-                    befund = generiere_befund(client, diagnose_szenario, diagnostik_eingabe)
+                    aktualisiere_kumulative_befunde(befund)
+                    st.session_state["befund_generierung_gescheitert"] = False
+                    st.session_state.pop("befund_generierungsfehler", None)
+                    st.session_state["befund_generating"] = False
+                    st.rerun()
 
-                st.session_state.befunde = befund
-                st.success("✅ Befunde generiert")
-                st.rerun()
-
-            except RateLimitError:
-                st.error("🚫 Befunde konnten nicht generiert werden. Die OpenAI-API ist aktuell überlastet.")
-            except Exception as e:
-                st.error(f"❌ Fehler bei der Befundgenerierung: {e}")
+                except Exception as error:
+                    st.session_state["befund_generating"] = False
+                    st.error(f"❌ Manueller Fallback fehlgeschlagen: {error}")
+                    # Hinweis: Für tiefergehendes Debugging können hier zusätzliche Logs ergänzt werden.
 
 else:
     st.subheader("📄 Befunde")
