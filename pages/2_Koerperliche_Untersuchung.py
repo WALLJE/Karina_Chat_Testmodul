@@ -11,6 +11,8 @@ copyright_footer()
 show_sidebar()
 display_offline_banner()
 
+st.session_state.setdefault("koerper_befund_generating", False)
+
 # Voraussetzungen prüfen
 if (
     "diagnose_szenario" not in st.session_state or
@@ -38,7 +40,44 @@ if "koerper_befund" in st.session_state:
     st.markdown(st.session_state.koerper_befund)
 
 elif fragen_gestellt:
-    if st.button("🩺 Untersuchung durchführen"):
+    if not st.session_state.get("koerper_befund_generating", False):
+        st.session_state.koerper_befund_generating = True
+        try:
+            if is_offline():
+                koerper_befund = generiere_koerperbefund(
+                    st.session_state.get("openai_client"),
+                    st.session_state.diagnose_szenario,
+                    st.session_state.diagnose_features,
+                    st.session_state.get("koerper_befund_tip", ""),
+                )
+            else:
+                with st.spinner(f"{st.session_state.patient_name} wird untersucht..."):
+                    koerper_befund = generiere_koerperbefund(
+                        st.session_state["openai_client"],
+                        st.session_state.diagnose_szenario,
+                        st.session_state.diagnose_features,
+                        st.session_state.get("koerper_befund_tip", ""),
+                    )
+            st.session_state.koerper_befund = koerper_befund
+            st.session_state.koerper_befund_generating = False
+            if is_offline():
+                st.info(
+                    "🔌 Offline-Befund geladen. Sobald der Online-Modus aktiv ist, kannst du einen KI-generierten Befund abrufen."
+                )
+            st.rerun()
+        except RateLimitError:
+            st.session_state.koerper_befund_generating = False
+            st.error("🚫 Die Untersuchung konnte nicht erstellt werden. Die OpenAI-API ist derzeit überlastet.")
+        except Exception as err:
+            st.session_state.koerper_befund_generating = False
+            st.error(f"❌ Unerwarteter Fehler bei der Untersuchung: {err}")
+        # Debug-Hinweis: Bei Bedarf kann hier kurzfristig st.write(...) ergänzt werden, um Zwischenstände sichtbar zu machen.
+
+    if st.button(
+        "🩺 Untersuchung durchführen",
+        disabled=st.session_state.get("koerper_befund_generating", False),
+    ):
+        st.session_state.koerper_befund_generating = True
         try:
             if is_offline():
                 koerper_befund = generiere_koerperbefund(
@@ -56,14 +95,22 @@ elif fragen_gestellt:
                         st.session_state.get("koerper_befund_tip", "")
                     )
             st.session_state.koerper_befund = koerper_befund
+            st.session_state.koerper_befund_generating = False
             if is_offline():
                 st.info("🔌 Offline-Befund geladen. Sobald der Online-Modus aktiv ist, kannst du einen KI-generierten Befund abrufen.")
             st.rerun()
         except RateLimitError:
+            st.session_state.koerper_befund_generating = False
             st.error("🚫 Die Untersuchung konnte nicht erstellt werden. Die OpenAI-API ist derzeit überlastet.")
+        except Exception as err:
+            st.session_state.koerper_befund_generating = False
+            st.error(f"❌ Unerwarteter Fehler bei der Untersuchung: {err}")
 else:
     st.subheader("🩺 Untersuchung")
-    st.button("Untersuchung durchführen", disabled=True)
+    st.button(
+        "Untersuchung durchführen",
+        disabled=True,
+    )
     st.info(f"Zuerst bitte mit {st.session_state.patient_name} sprechen.", icon="🔒")
     st.page_link("pages/1_Anamnese.py", label="Zurück zur Anamnese", icon="⬅")
     

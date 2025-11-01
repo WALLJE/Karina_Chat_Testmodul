@@ -63,6 +63,7 @@ def initialisiere_session_state():
     st.session_state.setdefault("feedback_prompt_final", "") #test
     st.session_state.setdefault("final_diagnose", "") #test
     st.session_state.setdefault("offline_mode", False)
+    st.session_state.setdefault("koerper_befund_generating", False)
 
 def speichere_gpt_feedback_in_supabase():
     """Leitet die Supabase-Speicherung an das neue Hilfsmodul weiter."""
@@ -197,6 +198,44 @@ anzahl_fragen = sum(1 for m in st.session_state.messages if m["role"] == "user")
 if anzahl_fragen > 0:
     st.subheader("Körperliche Untersuchung")
 
+    if (
+        not st.session_state.get("koerper_befund")
+        and not st.session_state.get("koerper_befund_generating", False)
+    ):
+        st.session_state.koerper_befund_generating = True
+        try:
+            if is_offline():
+                koerper_befund = generiere_koerperbefund(
+                    client,
+                    st.session_state.diagnose_szenario,
+                    st.session_state.diagnose_features,
+                    st.session_state.koerper_befund_tip,
+                )
+            else:
+                with st.spinner(f"{st.session_state.patient_name} wird untersucht..."):
+                    koerper_befund = generiere_koerperbefund(
+                        client,
+                        st.session_state.diagnose_szenario,
+                        st.session_state.diagnose_features,
+                        st.session_state.koerper_befund_tip,
+                    )
+            st.session_state.koerper_befund = koerper_befund
+            st.session_state.koerper_befund_generating = False
+            if is_offline():
+                st.info(
+                    "🔌 Offline-Befund geladen. Sobald der Online-Modus aktiv ist, kannst du einen KI-generierten Befund abrufen."
+                )
+            st.rerun()
+        except RateLimitError:
+            st.session_state.koerper_befund_generating = False
+            st.error(
+                "🚫 Die Untersuchung konnte nicht erstellt werden. Die OpenAI-API ist derzeit überlastet."
+            )
+        except Exception as err:
+            st.session_state.koerper_befund_generating = False
+            st.error(f"❌ Unerwarteter Fehler bei der Untersuchung: {err}")
+        # Debug-Hinweis: Bei Bedarf kann hier ein st.write(...) aktiviert werden, um Details zur Generierung anzuzeigen.
+
 #Debug
     # st.write("Szenario:", st.session_state.diagnose_szenario)
     # st.write("Features:", st.session_state.diagnose_features)
@@ -205,19 +244,33 @@ if anzahl_fragen > 0:
         st.success("✅ Körperliche Untersuchung erfolgt.")
         st.markdown(st.session_state.koerper_befund)
     else:
-        if st.button("Untersuchung durchführen"):
-            with st.spinner(f"{st.session_state.patient_name} wird untersucht..."):
-                try:
+        if st.button(
+            "Untersuchung durchführen",
+            disabled=st.session_state.get("koerper_befund_generating", False),
+        ):
+            st.session_state.koerper_befund_generating = True
+            try:
+                if is_offline():
                     koerper_befund = generiere_koerperbefund(
                         client,
                         st.session_state.diagnose_szenario,
                         st.session_state.diagnose_features,
                         st.session_state.koerper_befund_tip
                     )
-                    st.session_state.koerper_befund = koerper_befund
-                    st.rerun()
-                except RateLimitError:
-                    st.error("🚫 Die Untersuchung konnte nicht erstellt werden. Die OpenAI-API ist derzeit überlastet.")
+                else:
+                    with st.spinner(f"{st.session_state.patient_name} wird untersucht..."):
+                        koerper_befund = generiere_koerperbefund(
+                            client,
+                            st.session_state.diagnose_szenario,
+                            st.session_state.diagnose_features,
+                            st.session_state.koerper_befund_tip
+                        )
+                st.session_state.koerper_befund = koerper_befund
+                st.session_state.koerper_befund_generating = False
+                st.rerun()
+            except RateLimitError:
+                st.session_state.koerper_befund_generating = False
+                st.error("🚫 Die Untersuchung konnte nicht erstellt werden. Die OpenAI-API ist derzeit überlastet.")
            
 else:
     st.subheader("Körperliche Untersuchung")
