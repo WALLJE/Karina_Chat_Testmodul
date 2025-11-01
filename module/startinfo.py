@@ -10,8 +10,6 @@ def zeige_instruktionen_vor_start(lade_callback: Optional[Callable[[], None]] = 
 
     st.session_state.setdefault("instruktion_bestätigt", False)
     st.session_state.setdefault("instruktion_loader_fertig", False)
-    patient_forms = get_patient_forms()
-
     # Wir verwenden Platzhalter-Container, damit sich die Inhalte nach Abschluss des
     # Ladecallbacks aktualisieren lassen, ohne dass der Seitenaufbau neu strukturiert wird.
     instruktionen_placeholder = st.empty()
@@ -21,24 +19,29 @@ def zeige_instruktionen_vor_start(lade_callback: Optional[Callable[[], None]] = 
     def schreibe_instruktionen() -> None:
         """Erzeugt den Instruktionstext mit dynamischen Personenangaben."""
 
+        # Wir holen die sprachlichen Formen innerhalb der Funktion, damit bei jedem Aufruf
+        # der aktuelle Personenstatus (Geschlecht und Name) berücksichtigt wird. Während der
+        # Fallvorbereitung wird ``patient_gender`` häufig erst gesetzt – so vermeiden wir,
+        # dass zuvor gecachte Formen beibehalten werden.
+        patient_forms = get_patient_forms()
         patient_name = st.session_state.get("patient_name", "").strip()
         if patient_name:
-            patient_ansprache = (
-                f"{patient_forms.phrase('dat', adjective='virtuellen')} {patient_name}, "
-                f"{patient_forms.relative_pronoun()} sich in Ihrer hausärztlichen Sprechstunde vorstellt."
+            patient_intro = (
+                "Sie übernehmen die Rolle einer Ärztin oder eines Arztes im Gespräch mit "
+                f"{patient_name}, {patient_forms.relative_pronoun()} sich in Ihrer hausärztlichen Sprechstunde vorstellt."
             )
         else:
-            # Solange der Name noch nicht bekannt ist, bleiben wir bei einer neutralen Formulierung.
-            # Sobald die Fallvorbereitung abgeschlossen wurde, aktualisieren wir den Text automatisch.
-            patient_ansprache = (
-                f"{patient_forms.phrase('dat', adjective='virtuellen')} einer simulierten Patientin bzw. einem "
-                f"simulierten Patienten, {patient_forms.relative_pronoun()} sich in Ihrer hausärztlichen Sprechstunde vorstellt."
+            # Solange der Name noch nicht bekannt ist, verwenden wir eine allgemein verständliche Formulierung.
+            # Sobald die Fallvorbereitung abgeschlossen wurde, aktualisieren wir den Text automatisch mit dem konkreten Namen.
+            patient_intro = (
+                "Sie übernehmen die Rolle einer Ärztin oder eines Arztes im Gespräch mit einer simulierten Patientin "
+                f"bzw. einem simulierten Patienten, {patient_forms.relative_pronoun()} sich in Ihrer hausärztlichen Sprechstunde vorstellt."
             )
 
         instruktionen_placeholder.markdown(
             f"""
 #### Instruktionen für Studierende:
-Sie übernehmen die Rolle einer Ärztin oder eines Arztes im Gespräch mit {patient_ansprache}
+{patient_intro}
 Ihr Ziel ist es, durch gezielte Anamnese und klinisches Denken eine Verdachtsdiagnose zu stellen sowie ein sinnvolles diagnostisches und therapeutisches Vorgehen zu entwickeln.
 
 #### 🔍 Ablauf:
@@ -84,7 +87,13 @@ Im Wartezimmer sitzen weitere {patient_forms.plural_phrase()} mit anderen Krankh
     elif st.session_state.get("fall_vorbereitung_abgeschlossen"):
         # Wurde der Ladevorgang bereits abgeschlossen, bleibt der Hinweis sichtbar.
         with ladebereich:
-            st.success("✅ Fallvorbereitung abgeschlossen. Der Start der Sprechstunde ist jetzt möglich.")
+            # Wir greifen hier erneut auf den Namen zu, um den Übergang möglichst patientenzentriert zu formulieren.
+            patient_name = st.session_state.get("patient_name", "").strip()
+            if patient_name:
+                start_hinweis = f"✅ Fallvorbereitung abgeschlossen. Beginnen Sie das Gespräch mit {patient_name}."
+            else:
+                start_hinweis = "✅ Fallvorbereitung abgeschlossen. Beginnen Sie das Gespräch mit der simulierten Patientin oder dem Patienten."
+            st.success(start_hinweis)
     elif not lade_callback:
         # Falls kein Ladevorgang benötigt wird, ist der Button sofort verfügbar.
         st.session_state.instruktion_loader_fertig = True
