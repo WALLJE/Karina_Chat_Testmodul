@@ -144,19 +144,27 @@ def task_spinner(spinner_text: str, tasks: Iterable[str]):
     # Container einfügen (z. B. ``st.container()``), solange sie diese Reihenfolge
     # beibehalten.
     spinner_placeholder = st.empty()
-    progress_placeholder = st.empty()
-    text_placeholder = st.empty()
-    debug_placeholder = st.empty() if DEBUG_TASK_PROGRESS else None
 
-    display = TaskProgressDisplay(
-        tasks,
-        progress_container=progress_placeholder,
-        text_container=text_placeholder,
-        debug_container=debug_placeholder,
-    )
-    try:
-        with spinner_placeholder.spinner(spinner_text):
+    # Der Spinner selbst wird zuerst erzeugt; innerhalb des Kontextes platzieren
+    # wir dann die weiteren Ausgabeelemente in der gewünschten Reihenfolge.
+    with spinner_placeholder.spinner(spinner_text):
+        progress_placeholder = st.empty()
+        text_placeholder = st.empty()
+        debug_placeholder = st.empty() if DEBUG_TASK_PROGRESS else None
+
+        display = TaskProgressDisplay(
+            tasks,
+            progress_container=progress_placeholder,
+            text_container=text_placeholder,
+            debug_container=debug_placeholder,
+        )
+        try:
             yield display
-    finally:
-        display.complete()
-        display.cleanup()
+        finally:
+            display.complete()
+            display.cleanup()
+
+    # Nach Abschluss wird der ursprüngliche Spinner entfernt, damit keine leeren
+    # Platzhalter sichtbar bleiben. Für Debugging kann dieser Aufräumschritt bei
+    # Bedarf kommentiert werden, um die Renderreihenfolge im Nachhinein zu prüfen.
+    spinner_placeholder.empty()
