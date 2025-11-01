@@ -34,6 +34,7 @@ from module.feedback_mode import (
     set_mode_override,
 )
 from module.amboss_preprocessing import get_cached_summary
+from module.loading_indicator import task_spinner
 
 
 copyright_footer()
@@ -499,9 +500,16 @@ def _prepare_feedback_export() -> None:
     """Build the feedback export and keep the UI state in sync."""
 
     st.session_state["feedback_export_error"] = ""
-    with st.spinner("Supabase-Daten werden geladen..."):
+    ladeaufgaben = [
+        "Verbinde mit Supabase",
+        "Lade aktuelle Feedback-Datensätze",
+        "Bereite Exportdatei auf",
+    ]
+    with task_spinner("Supabase-Daten werden geladen...", ladeaufgaben) as indikator:
         try:
+            indikator.advance(1)
             export_bytes, export_filename = build_feedback_export()
+            indikator.advance(1)
         except FeedbackExportError as exc:
             _reset_feedback_export_state()
             st.session_state["feedback_export_error"] = f"Export nicht möglich: {exc}"
@@ -520,6 +528,7 @@ def _prepare_feedback_export() -> None:
                     export_filename or DEFAULT_EXPORT_FILENAME
                 )
                 st.session_state["feedback_export_revision"] += 1
+                indikator.advance(1)
 
 
 if "feedback_export_bytes" not in st.session_state:

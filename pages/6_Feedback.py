@@ -78,8 +78,15 @@ def _generiere_feedback() -> str:
             anzahl_termine,
             diagnose_szenario,
         )
+        st.session_state.final_feedback = feedback
     else:
-        with st.spinner("⏳ Abschluss-Feedback wird erstellt..."):
+        ladeaufgaben = [
+            "Sammle relevante Falldaten",
+            "Analysiere Antworten der Studierenden",
+            "Formuliere individualisiertes Feedback",
+        ]
+        with task_spinner("⏳ Abschluss-Feedback wird erstellt...", ladeaufgaben) as indikator:
+            indikator.advance(1)
             feedback = feedback_erzeugen(
                 st.session_state["openai_client"],
                 final_diagnose,
@@ -92,8 +99,9 @@ def _generiere_feedback() -> str:
                 anzahl_termine,
                 diagnose_szenario,
             )
-
-    st.session_state.final_feedback = feedback
+            indikator.advance(1)
+            st.session_state.final_feedback = feedback
+            indikator.advance(1)
     st.session_state["student_evaluation_done"] = False
     st.session_state.pop("feedback_row_id", None)
     return feedback
