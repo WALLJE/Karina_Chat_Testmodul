@@ -21,7 +21,7 @@ zusätzliche ``st.write``-Ausgaben aktiviert werden, die aktuell aus Gründen de
 
 from __future__ import annotations
 import json
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple
 import requests
 import streamlit as st
 
@@ -32,7 +32,7 @@ def _build_payload(query: str, *, language: str = "de") -> Dict[str, Any]:
     """Erstellt die JSON-RPC-Nutzlast für den MCP-Endpunkt von AMBOSS."""
     return {
         "jsonrpc": "2.0",
-        "id": "1",
+        "id": 1,
         "method": "tools/call",
         "params": {
             "name": "search_article_sections",
@@ -41,7 +41,7 @@ def _build_payload(query: str, *, language: str = "de") -> Dict[str, Any]:
     }
 
 
-def _try_parse_json(s: str) -> Optional[dict]:
+def _try_parse_json(s: str) -> Optional[Any]:
     """Hilfsfunktion, um JSON robust zu parsen und Fehler still zu ignorieren."""
     try:
         return json.loads(s)
@@ -49,38 +49,138 @@ def _try_parse_json(s: str) -> Optional[dict]:
         return None
 
 
+def _looks_like_json(value: str) -> bool:
+    """Prüft anhand einfacher Heuristiken, ob ein String JSON enthalten könnte."""
+    stripped = value.strip()
+    return (stripped.startswith("{") and stripped.endswith("}")) or (
+        stripped.startswith("[") and stripped.endswith("]")
+    )
+
+
+def _peel_json(obj_or_str: Any, *, max_depth: int = 4) -> Tuple[Any, int]:
+    """Entpackt verschachtelte JSON-Strings schrittweise bis ``max_depth`` Ebenen.
+
+    Rückgabewert ist ein ``(objekt, tiefe)``-Tupel. ``tiefe`` beschreibt, wie oft
+    erfolgreich geparst wurde. Dies hilft dabei zu erkennen, ob tatsächlich eine
+    weitere JSON-Struktur gefunden wurde.
+    """
+
+    depth = 0
+    current = obj_or_str
+    while depth < max_depth:
+        if isinstance(current, str) and _looks_like_json(current):
+            try:
+                current = json.loads(current)
+            except Exception:
+                break
+            depth += 1
+            continue
+        break
+    return current, depth
+
+
 def _parse_response(resp: requests.Response) -> dict:
-    """Wertet die Antwort des MCP aus und verarbeitet klassische JSON- sowie SSE-Antworten."""
-    ctype = resp.headers.get("Content-Type", "")
-    if "application/json" in ctype:
+    """Wertet die Antwort des MCP aus und verarbeitet klassische JSON- sowie SSE-Antworten.
+
+    Hinweis zur Synchronität: ``requests`` liest den Body bei ``resp.text`` blockierend
+    ein. Erst wenn der Server die komplette Antwort übertragen hat, wird diese Funktion
+    aktiv. Eine vermeintlich „halbierte“ Nutzlast entsteht daher nicht durch zu frühes
+    Parsen, sondern allenfalls durch einen Abbruch auf Serverseite. Für solche Fälle
+    empfehlen sich die unten erwähnten Debug-Helfer, um den Rohtext zu untersuchen.
+    """
+    ctype = (resp.headers.get("Content-Type") or "").lower()
+    if "application/json" in ctype and "event-stream" not in ctype:
         return resp.json()
 
-    # Verarbeitung von Server-Sent Events (SSE): AMBOSS liefert die JSON-Antwort
-    # dabei zeilenweise und prefixiert jede Datenzeile mit "data:". Die folgende
-    # Schleife entfernt diesen Prefix und setzt die JSON-Segmente wieder korrekt
-    # zusammen. Sollte der Dienst in Zukunft ein anderes Format liefern, kann hier
-    # das Debugging über auskommentierte ``st.write``-Anweisungen erfolgen.
-    payload = "".join(
-        line.strip()[len("data:"):].strip()
-        for line in resp.text.splitlines()
-        if line.strip().startswith("data:")
-    )
-    parsed = _try_parse_json(payload)
-    if parsed is None:
-        # Um Fehlerszenarien im Adminbereich besser nachvollziehen zu können,
-        # sichern wir den gesamten SSE-Rohtext sowie den zusammengesetzten Payload
-        # im Session State. So lassen sich die Daten später komfortabel inspizieren
-        # und bei Bedarf kopieren, ohne das Standardverhalten zu verändern.
-        st.session_state["amboss_result_raw"] = {
-            "hinweis": "JSON-Parsing der SSE-Nutzlast fehlgeschlagen.",
-            "rohtext": resp.text,
-            "zusammengefuehrter_payload": payload,
-        }
-        raise ValueError("Konnte SSE-JSON nicht extrahieren.")
-    # Erfolgreiche Antworten räumen den Rohdaten-Eintrag auf, damit keine veralteten
-    # Inhalte in der Adminansicht verbleiben.
-    st.session_state.pop("amboss_result_raw", None)
-    return parsed
+    # ``resp.text`` blockiert solange, bis der Server die Antwort vollständig übertragen
+    # hat. Damit beantworten wir die häufige Frage, ob der Stream eventuell „zu früh“
+    # verarbeitet wird: Nein, Requests liefert hier erst weiter, sobald alle Daten
+    # angekommen sind. Anschließend kann die SSE-Nutzlast in Ruhe ausgewertet werden.
+    # Dank des blockierenden Leseverhaltens erhalten wir hier stets den vollständigen
+    # Stream. Sollte der Server die Übertragung unerwartet abbrechen, wäre ``resp.text``
+    # bereits verkürzt. In so einem Fall lässt sich die Ursache über die Debug-Hilfen
+    # („amboss_result_raw“) nachvollziehen.
+    text_body = resp.text
+    if "event-stream" in ctype or "data:" in text_body or "event:" in text_body:
+        # Viele SSE-Server stückeln ein einzelnes Event auf mehrere ``data:``-Zeilen
+        # und trennen Events durch Leerzeilen. Deshalb puffern wir jede Sequenz von
+        # ``data:``-Zeilen, fügen sie vor dem Parsen zusammen und ignorieren
+        # Kommentar-/Keep-Alive-Zeilen. Für Debugging kann hier temporär ein
+        # ``st.write(raw_line)`` ergänzt werden, um den Stream vollständig sichtbar
+        # zu machen.
+        events: list[str] = []
+        buffer: list[str] = []
+        for raw_line in text_body.splitlines():
+            line = raw_line.rstrip("\r\n")
+            if line == "":
+                if buffer:
+                    events.append("\n".join(buffer))
+                    buffer = []
+                continue
+            if line.startswith(":"):
+                continue
+            if line.startswith("data:"):
+                buffer.append(line[len("data:") :].lstrip())
+                continue
+            # Andere SSE-Felder wie ``event:`` benötigen wir hier nicht explizit, sie
+            # werden für die JSON-Extraktion ignoriert.
+        if buffer:
+            events.append("\n".join(buffer))
+
+        result_object: Optional[dict] = None
+        for payload in events:
+            if not payload or payload == "[DONE]":
+                continue
+
+            # Erste Dekodierungsstufe: Direkt versuchen, den Payload zu laden.
+            current: Any = _try_parse_json(payload)
+            if current is None:
+                current = payload
+
+            # Weitere Dekodierungsstufen: Manche Antworten enthalten JSON in JSON.
+            current, _ = _peel_json(current)
+
+            if isinstance(current, dict):
+                if "error" in current:
+                    raise RuntimeError(f"MCP error: {current.get('error')}")
+                if "result" in current:
+                    result_object = current
+
+        if result_object is None:
+            st.session_state["amboss_result_raw"] = {
+                "hinweis": "Keine verwertbare JSON-RPC-Nutzlast in der SSE-Antwort gefunden.",
+                "rohtext": text_body,
+            }
+            raise ValueError("Konnte keine JSON-RPC-Nutzlast aus SSE extrahieren.")
+
+        # Falls die eigentliche Information nochmals als String vorliegt, versuchen
+        # wir auch diese Ebene zu entpacken, damit nachgelagerte Module direkt mit
+        # Python-Strukturen arbeiten können.
+        try:
+            content_entries = result_object.get("result", {}).get("content", [])
+            for entry in content_entries:
+                if entry.get("type") == "text" and isinstance(entry.get("text"), str):
+                    unpacked, depth = _peel_json(entry["text"], max_depth=3)
+                    if depth > 0 and isinstance(unpacked, (dict, list)):
+                        entry["text"] = unpacked
+            st.session_state["amboss_result_inner"] = result_object
+        except Exception:
+            # Sollte das Entpacken wider Erwarten scheitern, kann durch temporäre
+            # ``st.write(entry)``-Ausgaben oberhalb geprüft werden, welche Struktur
+            # genau vorliegt. Wir lassen in diesem Fall den Originaltext unangetastet.
+            pass
+
+        st.session_state.pop("amboss_result_raw", None)
+        return result_object
+
+    # Alle anderen Content-Types werden explizit abgefangen, um unerwartete Antworten
+    # früh zu erkennen. Auch hier landet der Rohtext im Session State für Debugging.
+    st.session_state["amboss_result_raw"] = {
+        "hinweis": "Unerwarteter Content-Type beim MCP-Aufruf.",
+        "content_type": ctype,
+        "rohtext": text_body,
+    }
+    raise ValueError(f"Unerwarteter Content-Type: {ctype}")
 
 
 def call_amboss_search(
@@ -115,6 +215,10 @@ def call_amboss_search(
 
     # Debug-Hinweis: Bei Bedarf kann hier ``st.write(headers, payload)`` aktiviert werden,
     # um die Anfrage im Detail zu inspizieren.
+    # Der Aufruf blockiert bis zur vollständigen Antwort; erst danach geht es in der
+    # Verarbeitung weiter. Wer experimentell live im Stream mitlesen möchte, kann
+    # ``stream=True`` ergänzen und in ``_parse_response`` auf ``resp.iter_lines``
+    # umstellen. Für die reguläre Nutzung ist das vollständige Puffern jedoch stabiler.
     resp = requests.post(url, headers=headers, data=json.dumps(payload), timeout=timeout)
     resp.raise_for_status()
     result = _parse_response(resp)
