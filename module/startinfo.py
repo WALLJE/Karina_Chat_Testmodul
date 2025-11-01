@@ -11,10 +11,25 @@ def zeige_instruktionen_vor_start(lade_callback: Optional[Callable[[], None]] = 
     st.session_state.setdefault("instruktion_loader_fertig", False)
     patient_forms = get_patient_forms()
 
+    # Zur sicheren Anzeige merken wir uns den Namen frühzeitig.
+    # Falls der Name noch nicht vorbereitet wurde, geben wir eine klare Hilfestellung aus,
+    # damit während der Entwicklung sofort erkennbar ist, dass die Fallvorbereitung fehlt.
+    patient_name = st.session_state.get("patient_name", "").strip()
+    if not patient_name:
+        st.info(
+            "ℹ️ Der Patientenname ist noch nicht gesetzt. Bitte prüfen Sie, ob die Fallvorbereitung"
+            " bereits abgeschlossen wird und aktivieren Sie bei Bedarf die Debug-Ausgaben im"
+            " Lade-Callback."
+        )
+        # Platzhalter zur Anzeige im Fließtext; bewusst neutral gehalten, damit keine falschen Daten
+        # suggeriert werden. Für eine detaillierte Analyse kann im Lade-Callback zusätzlich ein
+        # st.write aktiviert werden (siehe Kommentar dort).
+        patient_name = "der simulierten Patientin bzw. dem simulierten Patienten"
+
     if not st.session_state.instruktion_bestätigt:
         st.markdown(f"""
 #### Instruktionen für Studierende:
-Sie übernehmen die Rolle einer Ärztin oder eines Arztes im Gespräch mit {patient_forms.phrase("dat", adjective="virtuellen")} {st.session_state.patient_name}, {patient_forms.relative_pronoun()} sich in Ihrer hausärztlichen Sprechstunde vorstellt.
+Sie übernehmen die Rolle einer Ärztin oder eines Arztes im Gespräch mit {patient_forms.phrase("dat", adjective="virtuellen")} {patient_name}, {patient_forms.relative_pronoun()} sich in Ihrer hausärztlichen Sprechstunde vorstellt.
 Ihr Ziel ist es, durch gezielte Anamnese und klinisches Denken eine Verdachtsdiagnose zu stellen sowie ein sinnvolles diagnostisches und therapeutisches Vorgehen zu entwickeln.
 
 #### 🔍 Ablauf:
@@ -56,5 +71,5 @@ Im Wartezimmer sitzen weitere {patient_forms.plural_phrase()} mit anderen Krankh
         if st.session_state.instruktion_loader_fertig:
             st.page_link("pages/1_Anamnese.py", label="✅ Verstanden – weiter zur Anamnese")
 
-        st.stop ()
+        st.stop()
 
