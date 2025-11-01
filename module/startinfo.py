@@ -1,15 +1,44 @@
+from typing import Callable, Optional
+
 import streamlit as st
 
 from module.patient_language import get_patient_forms
 
-def zeige_instruktionen_vor_start():
+
+def zeige_instruktionen_vor_start(lade_callback: Optional[Callable[[], None]] = None) -> None:
+    """Blendet die Einstiegsinstruktionen ein und steuert den Ladeablauf."""
+
     st.session_state.setdefault("instruktion_bestätigt", False)
+    st.session_state.setdefault("instruktion_loader_fertig", False)
     patient_forms = get_patient_forms()
 
-    if not st.session_state.instruktion_bestätigt:
-        st.markdown(f"""
+    # Wir verwenden Platzhalter-Container, damit sich die Inhalte nach Abschluss des
+    # Ladecallbacks aktualisieren lassen, ohne dass der Seitenaufbau neu strukturiert wird.
+    instruktionen_placeholder = st.empty()
+    ladebereich = st.container()
+    fortsetzen_placeholder = st.empty()
+
+    def schreibe_instruktionen() -> None:
+        """Erzeugt den Instruktionstext mit dynamischen Personenangaben."""
+
+        patient_name = st.session_state.get("patient_name", "").strip()
+        if patient_name:
+            patient_ansprache = (
+                f"{patient_forms.phrase('dat', adjective='virtuellen')} {patient_name}, "
+                f"{patient_forms.relative_pronoun()} sich in Ihrer hausärztlichen Sprechstunde vorstellt."
+            )
+        else:
+            # Solange der Name noch nicht bekannt ist, bleiben wir bei einer neutralen Formulierung.
+            # Sobald die Fallvorbereitung abgeschlossen wurde, aktualisieren wir den Text automatisch.
+            patient_ansprache = (
+                f"{patient_forms.phrase('dat', adjective='virtuellen')} einer simulierten Patientin bzw. einem "
+                f"simulierten Patienten, {patient_forms.relative_pronoun()} sich in Ihrer hausärztlichen Sprechstunde vorstellt."
+            )
+
+        instruktionen_placeholder.markdown(
+            f"""
 #### Instruktionen für Studierende:
-Sie übernehmen die Rolle einer Ärztin oder eines Arztes im Gespräch mit {patient_forms.phrase("dat", adjective="virtuellen")} {st.session_state.patient_name}, {patient_forms.relative_pronoun()} sich in Ihrer hausärztlichen Sprechstunde vorstellt.
+Sie übernehmen die Rolle einer Ärztin oder eines Arztes im Gespräch mit {patient_ansprache}
 Ihr Ziel ist es, durch gezielte Anamnese und klinisches Denken eine Verdachtsdiagnose zu stellen sowie ein sinnvolles diagnostisches und therapeutisches Vorgehen zu entwickeln.
 
 #### 🔍 Ablauf:
@@ -26,11 +55,42 @@ z. B. bei neuen Verdachtsmomenten oder zur gezielten Klärung offener Fragen.
 Im Wartezimmer sitzen weitere {patient_forms.plural_phrase()} mit anderen Krankheitsbildern, die Sie durch einen erneuten Aufruf der App kennenlernen können.
 
 ---
-- **Überprüfen Sie alle Angaben und Hinweise der Kommunikation auf Richtigkeit.** 
+- **Überprüfen Sie alle Angaben und Hinweise der Kommunikation auf Richtigkeit.**
 - Die Anwendung sollte aufgrund ihrer Limitationen nur unter ärztlicher Supervision genutzt werden; Sie können bei Fragen und Unklarheiten den Chatverlauf in einer Text-Datei speichern.
 
 ---
-""")
-        st.page_link("pages/1_Anamnese.py", label="✅ Verstanden – weiter zur Anamnese")
-        st.stop ()
+"""
+        )
+
+    schreibe_instruktionen()
+
+    if lade_callback and not st.session_state.instruktion_loader_fertig:
+        with ladebereich:
+            try:
+                # Die Fallvorbereitung läuft direkt unterhalb des Instruktionstextes,
+                # damit der erste Spinner nicht auf einer leeren Seite erscheint.
+                lade_callback()
+            except Exception as exc:
+                st.error(
+                    "❌ Während der Vorbereitung ist ein Fehler aufgetreten. Bitte prüfen Sie die Debug-Hinweise im Kommentarbereich des Codes."
+                )
+                st.info("Tipp: Aktivieren Sie temporär zusätzliche st.write-Ausgaben im Lade-Callback, um den Fehler einzugrenzen.")
+                st.info(f"Technische Details: {exc}")
+            else:
+                st.session_state.instruktion_loader_fertig = True
+                # Nach erfolgreicher Vorbereitung steht der Name zur Verfügung und kann in den
+                # Instruktionen angezeigt werden.
+                schreibe_instruktionen()
+    elif st.session_state.get("fall_vorbereitung_abgeschlossen"):
+        # Wurde der Ladevorgang bereits abgeschlossen, bleibt der Hinweis sichtbar.
+        with ladebereich:
+            st.success("✅ Fallvorbereitung abgeschlossen. Der Start der Sprechstunde ist jetzt möglich.")
+    elif not lade_callback:
+        # Falls kein Ladevorgang benötigt wird, ist der Button sofort verfügbar.
+        st.session_state.instruktion_loader_fertig = True
+
+    if st.session_state.instruktion_loader_fertig:
+        fortsetzen_placeholder.page_link("pages/1_Anamnese.py", label="✅ Verstanden – weiter zur Anamnese")
+
+    st.stop()
 

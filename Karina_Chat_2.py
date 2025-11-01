@@ -67,6 +67,7 @@ def initialisiere_session_state():
     st.session_state.setdefault("koerper_befund_generating", False)
     st.session_state.setdefault("befund_generating", False)
     st.session_state.setdefault("befund_generierung_gescheitert", False)
+    st.session_state.setdefault("fall_vorbereitung_abgeschlossen", False)
 
 
 def aktualisiere_kumulative_befunde(neuer_befund: str) -> None:
@@ -157,14 +158,44 @@ initialisiere_session_state()
 # st.write ("Status:", diagnostik_eingaben, gpt_befunde, anzahl_runden)
 #####
 
-szenario_df = lade_fallbeispiele(url=DEFAULT_FALLDATEI_URL)
-fixed, fixed_szenario = get_fall_fix_state()
+def fuehre_fall_vorbereitung_durch() -> None:
+    """Bereitet das ausgewählte Fallszenario vollständig vor."""
 
-if not szenario_df.empty:
+    # Sobald die Fallvorbereitung abgeschlossen wurde, wird sie nicht erneut gestartet.
+    if st.session_state.get("fall_vorbereitung_abgeschlossen", False):
+        return
+
+    # Der Ladeabschnitt wird direkt unterhalb der Instruktionen eingeblendet. Damit entsteht
+    # keine wahrnehmbare Verzögerung zwischen dem Lesen der Hinweise und dem eigentlichen
+    # Vorbereiten des Falls.
+    st.markdown("#### ⏳ Vorbereitung des Falls")
+
+    # Wir laden die Falldaten erst an dieser Stelle, damit garantiert die Instruktionen als
+    # erster Bildschirm erscheinen. Für wiederholte Aufrufe halten wir den DataFrame im
+    # Session State vor; so vermeiden wir unnötige Netzwerkanfragen während einer Sitzung.
+    szenario_df = st.session_state.get("fallliste_df")
+    if szenario_df is None:
+        szenario_df = lade_fallbeispiele(url=DEFAULT_FALLDATEI_URL)
+        st.session_state["fallliste_df"] = szenario_df
+
+    if szenario_df.empty:
+        # Ohne Datengrundlage informieren wir klar über das Problem.
+        st.error(
+            "❌ Die Fallliste konnte nicht geladen werden. Bitte prüfen Sie die Datenquelle oder die Netzwerkverbindung."
+        )
+        st.session_state.fall_vorbereitung_abgeschlossen = True
+        return
+
+    # Informationen zu einer eventuellen Fall-Fixierung werden jedes Mal frisch abgefragt,
+    # damit Änderungen an der Konfiguration sofort greifen.
+    fixed, fixed_szenario = get_fall_fix_state()
+
+    # Admin-Vorgaben besitzen höchste Priorität und überschreiben Zufallsauswahl oder Fixierung.
     admin_szenario = st.session_state.pop("admin_selected_szenario", None)
     if admin_szenario:
         fallauswahl_prompt(szenario_df, admin_szenario)
     elif fixed and fixed_szenario:
+        # Bei fixierten Fällen stellen wir sicher, dass das Szenario weiterhin in der Liste existiert.
         if "Szenario" in szenario_df.columns:
             verfuegbare_szenarien = {
                 str(s).strip() for s in szenario_df["Szenario"].dropna() if str(s).strip()
@@ -176,23 +207,39 @@ if not szenario_df.empty:
             fallauswahl_prompt(szenario_df, fixed_szenario)
         else:
             st.warning(
-                f"Das fixierte Szenario '{fixed_szenario}' ist nicht mehr verfügbar. "
-                "Die Fixierung wurde aufgehoben."
+                f"Das fixierte Szenario '{fixed_szenario}' ist nicht mehr verfügbar. Die Fixierung wurde aufgehoben."
             )
             clear_fixed_scenario()
             fallauswahl_prompt(szenario_df)
     elif "diagnose_szenario" not in st.session_state:
+        # Wenn noch kein Fall gewählt wurde, greifen wir auf die Zufallsauswahl zurück.
         fallauswahl_prompt(szenario_df)
 
+    # Sobald das Szenario ausgewählt ist, werden alle weiteren Patient*innen-Daten
+    # unmittelbar vorbereitet. Dadurch stehen Name, Alter, Bildhinweise usw. bereits
+    # zur Verfügung, während die Instruktionen noch sichtbar sind.
+    prepare_fall_session_state()
+
+    # Für Entwicklerinnen und Entwickler ist es hilfreich zu wissen, dass an dieser Stelle
+    # ein vollständiger Satz an Session-State-Werten vorliegt. Bei Bedarf kann hier eine
+    # Debug-Ausgabe (z. B. ``st.write(st.session_state)``) aktiviert werden.
+
+    st.success("✅ Fallvorbereitung abgeschlossen. Der Start der Sprechstunde ist jetzt möglich.")
+
+    # Status-Flag setzen, damit spätere Aufrufe übersprungen werden.
+    st.session_state.fall_vorbereitung_abgeschlossen = True
+
+
+zeige_instruktionen_vor_start(lade_callback=fuehre_fall_vorbereitung_durch)
+
+# Die nachfolgenden Schritte werden erst ausgeführt, wenn die Instruktionen bestätigt wurden
+# und der Nutzer bzw. die Nutzerin sich in die eigentliche Sprechstunde begibt.
 if st.session_state.get("diagnose_szenario"):
     prepare_fall_session_state()
 
 show_sidebar()
 
 display_offline_banner()
-
-# Anweisungen anzeigen
-zeige_instruktionen_vor_start()
 
 st.title("Virtuelle Sprechstunde")
 st.markdown("<br>", unsafe_allow_html=True)
