@@ -57,11 +57,21 @@ class TaskProgressDisplay:
     ersichtlich ist, welche Aufgabe gerade bearbeitet wird.
     """
 
-    def __init__(self, tasks: Iterable[str]):
+    def __init__(
+        self,
+        tasks: Iterable[str],
+        progress_container: "st.delta_generator.DeltaGenerator",
+        text_container: "st.delta_generator.DeltaGenerator",
+        debug_container: "st.delta_generator.DeltaGenerator | None" = None,
+    ):
+        # Die Container werden von ``task_spinner`` in der gewünschten Reihenfolge
+        # vorbereitet, damit im Interface zuerst der Spinner, dann der Fortschritts-
+        # balken und anschließend die Detailtexte erscheinen. Durch das Injizieren
+        # der Platzhalter bleibt die Darstellungsreihenfolge flexibel.
         self._state = _TaskState(list(tasks))
-        self._progress_container = st.empty()
-        self._text_container = st.empty()
-        self._debug_container = st.empty() if DEBUG_TASK_PROGRESS else None
+        self._progress_container = progress_container
+        self._text_container = text_container
+        self._debug_container = debug_container
         self._progress_bar = self._progress_container.progress(0.0)
         self._render()
 
@@ -128,10 +138,38 @@ def task_spinner(spinner_text: str, tasks: Iterable[str]):
     Hilfstexte automatisch aufgeräumt.
     """
 
-    display = TaskProgressDisplay(tasks)
+    # Die Ausgabeelemente werden bewusst in dieser Reihenfolge erzeugt, damit im
+    # Streamlit-Frontend erst der Spinner sichtbar wird, anschließend der Balken
+    # und zuletzt die Detailtexte. Entwickelnde können bei Bedarf zusätzliche
+    # Container einfügen (z. B. ``st.container()``), solange sie diese Reihenfolge
+    # beibehalten.
+    # Wir kapseln sämtliche Ausgaben in einem Container, damit sich die gewünschte
+    # Reihenfolge (Spinner → Fortschrittsbalken → Detailtext) zuverlässig steuern
+    # lässt. Innerhalb des Containers sorgt ``st.spinner`` für die animierte
+    # Darstellung; darunter platzieren wir anschließend die weiteren Platzhalter.
+    layout_container = st.container()
+
     try:
-        with st.spinner(spinner_text):
-            yield display
+        with layout_container:
+            with st.spinner(spinner_text):
+                progress_placeholder = st.empty()
+                text_placeholder = st.empty()
+                debug_placeholder = st.empty() if DEBUG_TASK_PROGRESS else None
+
+                display = TaskProgressDisplay(
+                    tasks,
+                    progress_container=progress_placeholder,
+                    text_container=text_placeholder,
+                    debug_container=debug_placeholder,
+                )
+                try:
+                    yield display
+                finally:
+                    display.complete()
+                    display.cleanup()
     finally:
-        display.complete()
-        display.cleanup()
+        # Der gesamte Container wird am Ende entfernt, sodass keine leeren Bereiche
+        # im Streamlit-Layout zurückbleiben. Für Debug-Analysen kann dieser Schritt
+        # vorübergehend auskommentiert werden, um die endgültige Reihenfolge zu
+        # inspizieren.
+        layout_container.empty()
