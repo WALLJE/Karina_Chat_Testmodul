@@ -1,9 +1,14 @@
+from typing import Callable, Optional
+
 import streamlit as st
 
 from module.patient_language import get_patient_forms
 
-def zeige_instruktionen_vor_start():
+def zeige_instruktionen_vor_start(lade_callback: Optional[Callable[[], None]] = None) -> None:
+    """Blendet die Einstiegsinstruktionen ein und steuert den Ladeablauf."""
+
     st.session_state.setdefault("instruktion_bestätigt", False)
+    st.session_state.setdefault("instruktion_loader_fertig", False)
     patient_forms = get_patient_forms()
 
     if not st.session_state.instruktion_bestätigt:
@@ -31,6 +36,25 @@ Im Wartezimmer sitzen weitere {patient_forms.plural_phrase()} mit anderen Krankh
 
 ---
 """)
-        st.page_link("pages/1_Anamnese.py", label="✅ Verstanden – weiter zur Anamnese")
+        if lade_callback and not st.session_state.instruktion_loader_fertig:
+            try:
+                # Die Fallvorbereitung läuft direkt unterhalb des Instruktionstextes,
+                # damit der erste Spinner nicht auf einer leeren Seite erscheint.
+                lade_callback()
+            except Exception as exc:
+                st.error(
+                    "❌ Während der Vorbereitung ist ein Fehler aufgetreten. Bitte prüfen Sie die Debug-Hinweise im Kommentarbereich des Codes."
+                )
+                # Für die Fehlersuche kann temporär ein st.write im Ladecallback aktiviert werden.
+                st.info(f"Technische Details: {exc}")
+            else:
+                st.session_state.instruktion_loader_fertig = True
+        elif not lade_callback:
+            # Falls kein Ladevorgang benötigt wird, ist der Button sofort verfügbar.
+            st.session_state.instruktion_loader_fertig = True
+
+        if st.session_state.instruktion_loader_fertig:
+            st.page_link("pages/1_Anamnese.py", label="✅ Verstanden – weiter zur Anamnese")
+
         st.stop ()
 
