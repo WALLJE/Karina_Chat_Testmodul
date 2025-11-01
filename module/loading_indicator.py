@@ -143,28 +143,33 @@ def task_spinner(spinner_text: str, tasks: Iterable[str]):
     # und zuletzt die Detailtexte. Entwickelnde können bei Bedarf zusätzliche
     # Container einfügen (z. B. ``st.container()``), solange sie diese Reihenfolge
     # beibehalten.
-    spinner_placeholder = st.empty()
+    # Wir kapseln sämtliche Ausgaben in einem Container, damit sich die gewünschte
+    # Reihenfolge (Spinner → Fortschrittsbalken → Detailtext) zuverlässig steuern
+    # lässt. Innerhalb des Containers sorgt ``st.spinner`` für die animierte
+    # Darstellung; darunter platzieren wir anschließend die weiteren Platzhalter.
+    layout_container = st.container()
 
-    # Der Spinner selbst wird zuerst erzeugt; innerhalb des Kontextes platzieren
-    # wir dann die weiteren Ausgabeelemente in der gewünschten Reihenfolge.
-    with spinner_placeholder.spinner(spinner_text):
-        progress_placeholder = st.empty()
-        text_placeholder = st.empty()
-        debug_placeholder = st.empty() if DEBUG_TASK_PROGRESS else None
+    try:
+        with layout_container:
+            with st.spinner(spinner_text):
+                progress_placeholder = st.empty()
+                text_placeholder = st.empty()
+                debug_placeholder = st.empty() if DEBUG_TASK_PROGRESS else None
 
-        display = TaskProgressDisplay(
-            tasks,
-            progress_container=progress_placeholder,
-            text_container=text_placeholder,
-            debug_container=debug_placeholder,
-        )
-        try:
-            yield display
-        finally:
-            display.complete()
-            display.cleanup()
-
-    # Nach Abschluss wird der ursprüngliche Spinner entfernt, damit keine leeren
-    # Platzhalter sichtbar bleiben. Für Debugging kann dieser Aufräumschritt bei
-    # Bedarf kommentiert werden, um die Renderreihenfolge im Nachhinein zu prüfen.
-    spinner_placeholder.empty()
+                display = TaskProgressDisplay(
+                    tasks,
+                    progress_container=progress_placeholder,
+                    text_container=text_placeholder,
+                    debug_container=debug_placeholder,
+                )
+                try:
+                    yield display
+                finally:
+                    display.complete()
+                    display.cleanup()
+    finally:
+        # Der gesamte Container wird am Ende entfernt, sodass keine leeren Bereiche
+        # im Streamlit-Layout zurückbleiben. Für Debug-Analysen kann dieser Schritt
+        # vorübergehend auskommentiert werden, um die endgültige Reihenfolge zu
+        # inspizieren.
+        layout_container.empty()
