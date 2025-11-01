@@ -54,8 +54,7 @@ def copyright_footer() -> None:
         </style>
         <div class="footer">
             &copy; 2025 – Diese Simulation dient ausschließlich zu Lehrzwecken.
-            <span class="status-zeile {fall_status_class}">{fall_status_text}</span>
-            <span class="status-zeile {behavior_status_class}">{behavior_status_text}</span>
+            <span class="status-zeile {fall_status_class}">{fall_status_text}</span> <span class="status-zeile {behavior_status_class}">{behavior_status_text}</span>
         </div>
         """,
         unsafe_allow_html=True,
