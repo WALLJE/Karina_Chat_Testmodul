@@ -10,8 +10,6 @@ def zeige_instruktionen_vor_start(lade_callback: Optional[Callable[[], None]] = 
 
     st.session_state.setdefault("instruktion_bestätigt", False)
     st.session_state.setdefault("instruktion_loader_fertig", False)
-    patient_forms = get_patient_forms()
-
     # Wir verwenden Platzhalter-Container, damit sich die Inhalte nach Abschluss des
     # Ladecallbacks aktualisieren lassen, ohne dass der Seitenaufbau neu strukturiert wird.
     instruktionen_placeholder = st.empty()
@@ -21,6 +19,11 @@ def zeige_instruktionen_vor_start(lade_callback: Optional[Callable[[], None]] = 
     def schreibe_instruktionen() -> None:
         """Erzeugt den Instruktionstext mit dynamischen Personenangaben."""
 
+        # Wir holen die sprachlichen Formen innerhalb der Funktion, damit bei jedem Aufruf
+        # der aktuelle Personenstatus (Geschlecht und Name) berücksichtigt wird. Während der
+        # Fallvorbereitung wird ``patient_gender`` häufig erst gesetzt – so vermeiden wir,
+        # dass zuvor gecachte Formen beibehalten werden.
+        patient_forms = get_patient_forms()
         patient_name = st.session_state.get("patient_name", "").strip()
         if patient_name:
             patient_intro = (
