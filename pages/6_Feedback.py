@@ -11,6 +11,7 @@ from diagnostikmodul import aktualisiere_diagnostik_zusammenfassung
 from feedbackmodul import feedback_erzeugen
 from module.footer import copyright_footer
 from module.gpt_feedback import speichere_gpt_feedback_in_supabase
+from module.loading_indicator import task_spinner
 from module.offline import display_offline_banner, is_offline
 from module.sidebar import show_sidebar
 

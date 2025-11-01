@@ -16,6 +16,7 @@ except Exception:  # pragma: no cover - fallback when requests is unavailable
 from module.patient_language import get_patient_forms
 from module.MCP_Amboss import call_amboss_search
 from module.amboss_preprocessing import ensure_amboss_summary
+from module.loading_indicator import task_spinner
 from module.fall_config import clear_fixed_behavior, get_behavior_fix_state
 
 
@@ -161,62 +162,84 @@ def fallauswahl_prompt(df: pd.DataFrame, szenario: str | None = None) -> None:
         st.error(f"❌ Unerwarteter Fehler beim Laden des Falls: {exc}")
         return
 
-    st.session_state.diagnose_szenario = fall.get("Szenario", "")
-    st.session_state.diagnose_features = fall.get("Beschreibung", "")
-    st.session_state.koerper_befund_tip = fall.get("Körperliche Untersuchung", "")
+    ladeaufgaben = [
+        "Übernehme das ausgewählte Fallszenario",
+        "Rufe AMBOSS-MCP-Daten ab",
+        "Fasse AMBOSS-Ergebnisse kompakt zusammen",
+    ]
 
-    # Sobald das Szenario feststeht, wird es direkt an den MCP-Client von AMBOSS
-    # übergeben. Dadurch steht das Ergebnis im Session State für das spätere
-    # Feedback-Modul zur Verfügung. Bei Bedarf kann hier für das Debugging ein
-    # zusätzliches Logging ergänzt werden (z. B. mittels `st.write`).
-    if st.session_state.diagnose_szenario:
+    # Der Task-Spinner visualisiert transparent, welche Arbeitsschritte während
+    # der Fallvorbereitung laufen. Das erleichtert sowohl Studierenden als auch
+    # uns Entwickelnden das Verständnis, wo sich der Ladevorgang gerade befindet.
+    with task_spinner("🧠 Fallvorbereitung läuft...", ladeaufgaben) as indikator:
+        st.session_state.diagnose_szenario = fall.get("Szenario", "")
+        st.session_state.diagnose_features = fall.get("Beschreibung", "")
+        st.session_state.koerper_befund_tip = fall.get("Körperliche Untersuchung", "")
+
+        alter_roh = fall.get("Alter")
         try:
-            call_amboss_search(query=st.session_state.diagnose_szenario)
-        except Exception as exc:  # pragma: no cover - reine Laufzeitfehlerbehandlung
-            st.error(f"❌ Abruf des AMBOSS-Inhalts zum Szenario fehlgeschlagen: {exc}")
-    #   else:
-    #       st.info(
-    #           "ℹ️ AMBOSS hat das Szenario verarbeitet. Die Ergebnisse liegen in "
-    #           "`st.session_state['amboss_result']` bereit."
-    #       )
+            alter_berechnet = int(float(alter_roh)) if alter_roh not in (None, "") else None
+        except (TypeError, ValueError):
+            alter_berechnet = None
+        st.session_state.patient_alter_basis = alter_berechnet
 
-    alter_roh = fall.get("Alter")
-    try:
-        alter_berechnet = int(float(alter_roh)) if alter_roh not in (None, "") else None
-    except (TypeError, ValueError):
-        alter_berechnet = None
-    st.session_state.patient_alter_basis = alter_berechnet
+        geschlecht = str(fall.get("Geschlecht", "")).strip().lower()
+        if geschlecht == "n":
+            geschlecht = random.choice(["m", "w"])
+        elif geschlecht not in {"m", "w"}:
+            geschlecht = ""
+        st.session_state.patient_gender = geschlecht
 
-    geschlecht = str(fall.get("Geschlecht", "")).strip().lower()
-    if geschlecht == "n":
-        geschlecht = random.choice(["m", "w"])
-    elif geschlecht not in {"m", "w"}:
-        geschlecht = ""
-    st.session_state.patient_gender = geschlecht
+        # Nach den Grunddaten signalisieren wir den Abschluss des ersten
+        # Schritts. Falls das Debugging eine feinere Granularität benötigt,
+        # kann hier temporär ein ``st.write`` aktiviert werden.
+        indikator.advance(1)
 
-    # Sobald Szenario, AMBOSS-Rohdaten und ein OpenAI-Client vorliegen, wird die
-    # kompakte Zusammenfassung direkt erzeugt. Dadurch steht sie beim späteren
-    # Feedback ohne Verzögerung bereit. Für detailliertes Debugging kann hier
-    # temporär ein ``st.write`` aktiviert werden, um den Aufruf zu protokollieren.
-    client = st.session_state.get("openai_client")
-    patient_age_for_summary = st.session_state.get("patient_age")
-    if patient_age_for_summary is None:
-        # Falls das Alter noch nicht endgültig bestimmt ist, nutzen wir den
-        # Basiswert aus dem Szenario. Bei Bedarf kann hier ein ``st.write``
-        # ergänzt werden, um fehlende Altersangaben frühzeitig zu erkennen.
-        patient_age_for_summary = st.session_state.get("patient_alter_basis")
-    if client and st.session_state.diagnose_szenario and patient_age_for_summary is not None:
-        try:
-            ensure_amboss_summary(
-                client,
-                diagnose_szenario=st.session_state.diagnose_szenario,
-                patient_age=int(patient_age_for_summary),
-            )
-        except Exception as exc:  # pragma: no cover - reine Laufzeitfehlerbehandlung
-            st.error(
-                "❌ Die Hintergrund-Zusammenfassung des AMBOSS-Payloads ist fehlgeschlagen: "
-                f"{exc}"
-            )
+        # Sobald das Szenario feststeht, wird es direkt an den MCP-Client von
+        # AMBOSS übergeben. Bei Fehlern halten wir den Fortschritt dennoch
+        # konsistent, damit Nutzer:innen nicht in einem ewigen Ladezustand
+        # verbleiben.
+        if st.session_state.diagnose_szenario:
+            try:
+                call_amboss_search(query=st.session_state.diagnose_szenario)
+            except Exception as exc:  # pragma: no cover - reine Laufzeitfehlerbehandlung
+                st.error(f"❌ Abruf des AMBOSS-Inhalts zum Szenario fehlgeschlagen: {exc}")
+            finally:
+                indikator.advance(1)
+        else:
+            indikator.advance(1)
+
+        # Sobald Szenario, AMBOSS-Rohdaten und ein OpenAI-Client vorliegen,
+        # wird die kompakte Zusammenfassung direkt erzeugt. Dadurch steht sie
+        # beim späteren Feedback ohne Verzögerung bereit. Für detailliertes
+        # Debugging kann hier temporär ein ``st.write`` aktiviert werden, um den
+        # Aufruf zu protokollieren.
+        client = st.session_state.get("openai_client")
+        patient_age_for_summary = st.session_state.get("patient_age")
+        if patient_age_for_summary is None:
+            # Falls das Alter noch nicht endgültig bestimmt ist, nutzen wir den
+            # Basiswert aus dem Szenario. Bei Bedarf kann hier ein ``st.write``
+            # ergänzt werden, um fehlende Altersangaben frühzeitig zu erkennen.
+            patient_age_for_summary = st.session_state.get("patient_alter_basis")
+
+        if client and st.session_state.diagnose_szenario and patient_age_for_summary is not None:
+            try:
+                ensure_amboss_summary(
+                    client,
+                    diagnose_szenario=st.session_state.diagnose_szenario,
+                    patient_age=int(patient_age_for_summary),
+                )
+            except Exception as exc:  # pragma: no cover - reine Laufzeitfehlerbehandlung
+                st.error(
+                    "❌ Die Hintergrund-Zusammenfassung des AMBOSS-Payloads ist fehlgeschlagen: "
+                    f"{exc}"
+                )
+            finally:
+                indikator.advance(1)
+        else:
+            # Auch wenn die Zusammenfassung aufgrund fehlender Daten übersprungen
+            # werden muss, schließt der Fortschrittsbalken den letzten Schritt ab.
+            indikator.advance(1)
 
 
 def prepare_fall_session_state(
