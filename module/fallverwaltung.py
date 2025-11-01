@@ -163,9 +163,9 @@ def fallauswahl_prompt(df: pd.DataFrame, szenario: str | None = None) -> None:
         return
 
     ladeaufgaben = [
-        "Übernehme das ausgewählte Fallszenario",
-        "Rufe AMBOSS-MCP-Daten ab",
-        "Fasse AMBOSS-Ergebnisse kompakt zusammen",
+        "Übernehme zufällig ausgewähltes Fallszenario",
+        "Rufe Wissens-MCP-Daten ab",
+        "Fasse Ergebnisse zusammen",
     ]
 
     # Der Task-Spinner visualisiert transparent, welche Arbeitsschritte während
