@@ -26,6 +26,9 @@ def copyright_footer() -> None:
         behavior_status_class = "random"
 
     # Hinweis: Für Debugging lässt sich hier bei Bedarf ein `print` der beiden Statusvariablen aktivieren.
+    # Die nachfolgende CSS-Definition sorgt für eine zweizeilige Darstellung der Fußzeile,
+    # bei der in der ersten Zeile der allgemeine Hinweis und in der zweiten Zeile beide Statuswerte
+    # gemeinsam im Format "Fallstatus: ... - Verhaltensstatus: ..." ausgegeben werden.
     st.markdown(
         f"""
         <style>
@@ -42,19 +45,28 @@ def copyright_footer() -> None:
             border-top: 1px solid #ddd;
             z-index: 100;
         }}
-        .footer .status-zeile {{
+        .footer .statusbereich {{
             display: block;
-            margin-top: 4px;
+            margin-top: 6px;
             font-weight: 600;
+        }}
+        .footer .statusbereich .status-zeile {{
             color: #c0392b;
         }}
-        .footer .status-zeile.random {{
+        .footer .statusbereich .status-zeile.random {{
+            color: #666;
+        }}
+        .footer .statusbereich .trenner {{
             color: #666;
         }}
         </style>
         <div class="footer">
-            &copy; 2025 – Diese Simulation dient ausschließlich zu Lehrzwecken.
-            <span class="status-zeile {fall_status_class}">{fall_status_text}</span> <span class="status-zeile {behavior_status_class}">{behavior_status_text}</span>
+            <div class="footer-hinweis">&copy; 2025 – Diese Simulation dient ausschließlich zu Lehrzwecken.</div>
+            <div class="statusbereich">
+                <span class="status-zeile {fall_status_class}">{fall_status_text}</span>
+                <span class="trenner"> - </span>
+                <span class="status-zeile {behavior_status_class}">{behavior_status_text}</span>
+            </div>
         </div>
         """,
         unsafe_allow_html=True,

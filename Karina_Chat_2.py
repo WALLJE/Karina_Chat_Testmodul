@@ -224,7 +224,18 @@ def fuehre_fall_vorbereitung_durch() -> None:
     # ein vollständiger Satz an Session-State-Werten vorliegt. Bei Bedarf kann hier eine
     # Debug-Ausgabe (z. B. ``st.write(st.session_state)``) aktiviert werden.
 
-    st.success("✅ Fallvorbereitung abgeschlossen. Der Start der Sprechstunde ist jetzt möglich.")
+    # Nachdem alle Patient:innendaten geladen wurden, greifen wir auf den Namen zu und
+    # führen die Studierenden direkt ins Gespräch. Sollte der Name unerwartet fehlen,
+    # informieren wir weiterhin neutral – so erkennt man sofort, wo ein Debugging ansetzen
+    # müsste (z. B. durch eine temporäre ``st.write``-Ausgabe unmittelbar vor dieser Stelle).
+    patient_name = st.session_state.get("patient_name", "").strip()
+    if patient_name:
+        start_hinweis = f"✅ Fallvorbereitung abgeschlossen. Beginnen Sie das Gespräch mit {patient_name}."
+    else:
+        start_hinweis = (
+            "✅ Fallvorbereitung abgeschlossen. Beginnen Sie das Gespräch mit der simulierten Patientin oder dem Patienten."
+        )
+    st.success(start_hinweis)
 
     # Status-Flag setzen, damit spätere Aufrufe übersprungen werden.
     st.session_state.fall_vorbereitung_abgeschlossen = True
