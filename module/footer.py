@@ -26,6 +26,8 @@ def copyright_footer() -> None:
         behavior_status_class = "random"
 
     # Hinweis: Für Debugging lässt sich hier bei Bedarf ein `print` der beiden Statusvariablen aktivieren.
+    # Durch die folgende CSS-Regelung werden Fall- und Verhaltensstatus direkt nebeneinander dargestellt,
+    # sodass Studierende den aktuellen Simulationsmodus auf einen Blick erkennen können.
     st.markdown(
         f"""
         <style>
@@ -42,19 +44,27 @@ def copyright_footer() -> None:
             border-top: 1px solid #ddd;
             z-index: 100;
         }}
-        .footer .status-zeile {{
-            display: block;
-            margin-top: 4px;
+        .footer .statusbereich {{
+            display: inline-flex;
+            gap: 12px;
+            align-items: center;
+            justify-content: center;
+            margin-top: 6px;
             font-weight: 600;
+        }}
+        .footer .statusbereich .status-zeile {{
             color: #c0392b;
         }}
-        .footer .status-zeile.random {{
+        .footer .statusbereich .status-zeile.random {{
             color: #666;
         }}
         </style>
         <div class="footer">
             &copy; 2025 – Diese Simulation dient ausschließlich zu Lehrzwecken.
-            <span class="status-zeile {fall_status_class}">{fall_status_text}</span> <span class="status-zeile {behavior_status_class}">{behavior_status_text}</span>
+            <span class="statusbereich">
+                <span class="status-zeile {fall_status_class}">{fall_status_text}</span>
+                <span class="status-zeile {behavior_status_class}">{behavior_status_text}</span>
+            </span>
         </div>
         """,
         unsafe_allow_html=True,
