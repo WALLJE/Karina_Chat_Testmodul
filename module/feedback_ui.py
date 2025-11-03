@@ -50,9 +50,6 @@ def student_feedback():
 
     jetzt = datetime.now()
     start = st.session_state.get("startzeit", jetzt)
-    bearbeitungsdauer = (jetzt - start).total_seconds() / 60  # in Minuten
-
-   
     st.markdown("Bitte bewerten Sie die folgenden Aspekte auf einer Schulnoten-Skala von 1 (sehr gut) bis 6 (ungenügend):")
 
     f1 = st.radio("1. Wie realistisch war das Fallbeispiel?", [1, 2, 3, 4, 5, 6], horizontal=True)
