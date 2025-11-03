@@ -1,20 +1,8 @@
-# Version 18
-#  
-# Features:
-# Feedback in Supabase gespeichert
-# Einweisung Studierende mit Stopfunktion
-# Sprachkorrektur Diagnosen und Therapie
-# diverse Routinen defs
-# Möglichkeit für jedes Modell Besonderheiten bei Körperlicher Untersuchugn  zu definieren
-# 
-# 
-#
+
 
 import streamlit as st
-from openai import OpenAI, RateLimitError
+from openai import OpenAI
 import os
-
-from datetime import datetime
 
 # externe Codes einbinden
 from diagnostikmodul import diagnostik_und_befunde_routine
