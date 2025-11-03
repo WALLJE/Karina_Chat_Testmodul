@@ -241,6 +241,10 @@ def fallauswahl_prompt(df: pd.DataFrame, szenario: str | None = None) -> None:
             # werden muss, schließt der Fortschrittsbalken den letzten Schritt ab.
             indikator.advance(1)
 
+        # Hinweis für die Entwicklung: Die hier erzeugte `amboss_payload_summary`
+        # wird im Feedbackmodul beim Promptaufbau produktiv genutzt, um den
+        # optionalen Fachkontext kompakt zu halten.
+
 
 def prepare_fall_session_state(
     *, namensliste_pfad: str = "Namensliste.csv", namensliste_df: pd.DataFrame | None = None

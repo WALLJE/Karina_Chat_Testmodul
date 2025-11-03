@@ -15,23 +15,54 @@ from module.feedback_mode import (
     determine_feedback_mode,
 )
 
+# Mindestlänge in Zeichen, damit eine AMBOSS-Zusammenfassung als belastbar gilt.
+_MIN_AMBOSS_SUMMARY_CHARS = 80
 
-def _format_amboss_result(data: Any) -> str:
-    """Bereitet die AMBOSS-Antwort für die Übergabe an das Sprachmodell auf."""
+# Maximale Länge eines Debug-Auszugs aus dem Roh-Payload, damit der Prompt klein bleibt.
+_MAX_AMBOSS_RAW_SNIPPET = 400
 
-    # Die Ausgabe erfolgt als bereits formatierter Text, damit der Prompt leicht
-    # nachvollzogen werden kann. Bei Bedarf kann hier eine Debug-Ausgabe ergänzt
-    # werden, um die Rohdaten der Schnittstelle zu inspizieren.
-    if not data:
-        return "Keine AMBOSS-Daten im Session State gefunden."
 
-    try:
-        return json.dumps(data, ensure_ascii=False, indent=2)
-    except TypeError:
-        # Falls ein Objekt nicht JSON-serialisierbar ist, wird es als String
-        # ausgegeben. Wer genauer prüfen möchte, kann an dieser Stelle einen
-        # Debug-Print (z. B. `st.write(data)`) aktivieren.
-        return str(data)
+def _build_amboss_context() -> str:
+    """Gibt den AMBOSS-Kontext für den Feedback-Prompt zurück."""
+
+    # Zuerst nutzen wir konsequent die vorberechnete Zusammenfassung, die im
+    # Vorlauf von `ensure_amboss_summary` erzeugt wurde.
+    summary = st.session_state.get("amboss_payload_summary")
+    if isinstance(summary, str):
+        summary_clean = summary.strip()
+        if len(summary_clean) >= _MIN_AMBOSS_SUMMARY_CHARS:
+            return summary_clean
+        if summary_clean:
+            # Auch sehr kurze Inhalte werden weitergegeben, allerdings mit einem
+            # Hinweis, damit klar bleibt, dass hier eventuell nachgearbeitet
+            # werden muss. Durch die kurze Nachricht bleibt der Prompt schlank.
+            return (
+                "Hinweis: Die AMBOSS-Zusammenfassung ist unerwartet kurz. "
+                "Inhalt: "
+                f"{summary_clean}"
+            )
+
+    # Debug-Hinweis: Wer temporär den vollständigen Roh-Payload inspizieren
+    # möchte, kann testweise `return json.dumps(st.session_state.get("amboss_result"),
+    # ensure_ascii=False, indent=2)` aktivieren. Bitte anschließend wieder
+    # entfernen, damit der Prompt kompakt bleibt und keine sensiblen Daten
+    # versehentlich geteilt werden.
+
+    raw_payload: Any = st.session_state.get("amboss_result")
+    if raw_payload:
+        raw_excerpt = json.dumps(raw_payload, ensure_ascii=False)[:_MAX_AMBOSS_RAW_SNIPPET]
+        return (
+            "Hinweis: Keine AMBOSS-Zusammenfassung verfügbar. "
+            "Kurz-Auszug aus dem Payload zur Orientierung: "
+            f"{raw_excerpt}"
+        )
+
+    # Falls weder Zusammenfassung noch Rohdaten vorliegen, bleibt die
+    # Rückmeldung sehr kurz, um das Kontextlimit zuverlässig einzuhalten.
+    return (
+        "Hinweis: Für dieses Feedback liegt aktuell keine AMBOSS-Zusammenfassung vor. "
+        "Bitte prüfen Sie den Vorlauf bei Bedarf."
+    )
 
 
 def feedback_erzeugen(
@@ -69,7 +100,10 @@ def feedback_erzeugen(
     # Optionaler AMBOSS-Kontext wird nur im entsprechenden Modus geladen.
     amboss_context = ""
     if feedback_mode == FEEDBACK_MODE_AMBOSS_CHATGPT:
-        amboss_context = _format_amboss_result(st.session_state.get("amboss_result"))
+        # Die hier genutzte Zusammenfassung wurde im Vorfeld erzeugt und hält den
+        # Prompt bewusst klein. Debug-Hinweise dazu finden sich in
+        # `_build_amboss_context`.
+        amboss_context = _build_amboss_context()
 
     # Der Prompt wird komplett in einem String aufgebaut, sodass das Modell das
     # Feedback in einem Schritt erzeugt. Dadurch vermeiden wir divergierende
