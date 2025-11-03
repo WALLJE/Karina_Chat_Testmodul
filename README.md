@@ -1,8 +1,6 @@
 <!-- HINWEIS: Diese README wurde umfassend dokumentiert, damit neue Administratorinnen und Administratoren den Aufbau der Anwendung schnell nachvollziehen können. -->
 # Karina-Chat
 
-Diese README-Datei beschreibt die Nutzung des Karina-Chat-Moduls sowie die speziellen Funktionen des Admin-Modus. Alle Schritte und Hinweise sind bewusst ausführlich gehalten, damit auch neue Teammitglieder ohne Vorwissen problemlos starten können.
-
 ## Inhaltsverzeichnis
 1. [Überblick](#überblick)
 2. [Systemvoraussetzungen](#systemvoraussetzungen)
