@@ -16,10 +16,10 @@ from module.feedback_mode import (
 )
 
 # Mindestlänge in Zeichen, damit eine AMBOSS-Zusammenfassung als belastbar gilt.
-_MIN_AMBOSS_SUMMARY_CHARS = 80
+_MIN_AMBOSS_SUMMARY_CHARS = 200
 
 # Maximale Länge eines Debug-Auszugs aus dem Roh-Payload, damit der Prompt klein bleibt.
-_MAX_AMBOSS_RAW_SNIPPET = 400
+_MAX_AMBOSS_RAW_SNIPPET = 2000
 
 
 def _build_amboss_context() -> str:
