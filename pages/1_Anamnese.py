@@ -10,6 +10,7 @@ from module.offline import (
     is_offline,
 )
 from module.loading_indicator import task_spinner
+from module.token_counter import init_token_counters, add_usage
 
 copyright_footer()
 show_sidebar()
@@ -66,10 +67,23 @@ if submit_button and user_input:
         with task_spinner(f"{st.session_state.patient_name} antwortet...", ladeaufgaben) as indikator:
             try:
                 indikator.advance(1)
+                # Vor jedem API-Kontakt stellen wir sicher, dass die Zähler existieren,
+                # damit mehrere Chatsitzungen sauber kumuliert werden können.
+                init_token_counters()
                 response = client.chat.completions.create(
                     model="gpt-4",
                     messages=st.session_state.messages,
                     temperature=0.6
+                )
+                # Die zurückgelieferten Token-Werte werden unmittelbar in die Session-Summen
+                # übernommen. "total_tokens" enthält zwar bereits die Summe des aktuellen Calls,
+                # dennoch addieren wir explizit, um über mehrere Gesprächsrunden hinweg eine
+                # kumulierte Statistik führen zu können. Für Debugging kann hier bei Bedarf ein
+                # st.write(...) aktiviert werden.
+                add_usage(
+                    prompt_tokens=response.usage.prompt_tokens,
+                    completion_tokens=response.usage.completion_tokens,
+                    total_tokens=response.usage.total_tokens,
                 )
                 indikator.advance(1)
                 reply = response.choices[0].message.content
