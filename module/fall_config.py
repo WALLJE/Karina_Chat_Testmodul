@@ -20,6 +20,12 @@ __all__ = [
     "set_feedback_mode_fix",
     "clear_feedback_mode_fix",
     "get_config_file_status",
+    "get_amboss_fetch_preferences",
+    "set_amboss_fetch_mode",
+    "set_amboss_random_probability",
+    "AMBOSS_FETCH_ALWAYS",
+    "AMBOSS_FETCH_IF_EMPTY",
+    "AMBOSS_FETCH_RANDOM",
 ]
 
 # Der Datenordner liegt eine Ebene über dem Modulverzeichnis, damit alle Komponenten
@@ -44,7 +50,26 @@ _DEFAULT_CONFIG: Dict[str, Any] = {
     "feedback_mode_fixed": False,
     "feedback_mode": "",
     "feedback_mode_fixed_at": "",
+    # Persistente Steuerung für den Abruf der AMBOSS-Daten.
+    # "amboss_fetch_mode" bestimmt, ob der MCP-Aufruf immer, nur bei leeren Zellen
+    # oder zufällig erfolgen soll. "amboss_random_probability" speichert die
+    # Wahrscheinlichkeit für den Zufallsmodus (0.0 bis 1.0).
+    "amboss_fetch_mode": "random",
+    "amboss_random_probability": 0.2,
 }
+
+# Gültige Konstanten für den Abrufmodus. Die Werte werden im Adminbereich als
+# Auswahl angezeigt und auch im Code genutzt, um Verzweigungen klar lesbar zu
+# halten.
+AMBOSS_FETCH_ALWAYS = "always"
+AMBOSS_FETCH_IF_EMPTY = "if_empty"
+AMBOSS_FETCH_RANDOM = "random"
+
+# Zulässiger Bereich für die Zufallswahrscheinlichkeit. Durch die Konstanten
+# vermeiden wir magische Zahlen im Code und machen deutlich, wie Eingaben
+# begrenzt werden.
+_MIN_RANDOM_PROBABILITY = 0.0
+_MAX_RANDOM_PROBABILITY = 1.0
 
 
 def _normalize_config(data: Dict[str, Any]) -> Dict[str, Any]:
@@ -57,6 +82,24 @@ def _normalize_config(data: Dict[str, Any]) -> Dict[str, Any]:
             normalized[key] = bool(value)
         else:
             normalized[key] = str(value) if isinstance(normalized[key], str) else value
+    # Nach dem Kopieren der Basiswerte stellen wir sicher, dass der Abrufmodus nur
+    # zulässige Kennwörter enthält. Unbekannte Werte werden auf "random"
+    # zurückgesetzt, damit der Adminbereich stets einen gültigen Zustand anzeigt.
+    fetch_mode = str(normalized.get("amboss_fetch_mode", AMBOSS_FETCH_RANDOM)).strip()
+    if fetch_mode not in {AMBOSS_FETCH_ALWAYS, AMBOSS_FETCH_IF_EMPTY, AMBOSS_FETCH_RANDOM}:
+        fetch_mode = AMBOSS_FETCH_RANDOM
+    normalized["amboss_fetch_mode"] = fetch_mode
+
+    # Die Wahrscheinlichkeit wird in eine Gleitkommazahl umgewandelt und innerhalb
+    # des erlaubten Bereichs gekappt. So vermeiden wir Tippfehler (z. B. "120") und
+    # stellen sicher, dass der Zufallsmodus reproduzierbar arbeitet.
+    probability_raw = normalized.get("amboss_random_probability", _DEFAULT_CONFIG["amboss_random_probability"])
+    try:
+        probability_value = float(probability_raw)
+    except (TypeError, ValueError):
+        probability_value = float(_DEFAULT_CONFIG["amboss_random_probability"])
+    probability_value = max(_MIN_RANDOM_PROBABILITY, min(_MAX_RANDOM_PROBABILITY, probability_value))
+    normalized["amboss_random_probability"] = probability_value
     return normalized
 
 
@@ -97,6 +140,50 @@ def _save_config(data: Dict[str, Any]) -> None:
             # Für Debugging kann hier optional ein Logging aktiviert werden, das aufzeigt,
             # weshalb ein Speichern fehlgeschlagen ist.
             pass
+
+
+def _sanitize_fetch_mode(mode: str) -> str:
+    """Konvertiert beliebige Eingaben in einen der bekannten Abrufmodi."""
+
+    mode_clean = str(mode).strip().lower()
+    if mode_clean not in {AMBOSS_FETCH_ALWAYS, AMBOSS_FETCH_IF_EMPTY, AMBOSS_FETCH_RANDOM}:
+        return AMBOSS_FETCH_RANDOM
+    return mode_clean
+
+
+def _sanitize_probability(probability: float) -> float:
+    """Schneidet eine übergebene Wahrscheinlichkeit auf den gültigen Bereich zu."""
+
+    try:
+        value = float(probability)
+    except (TypeError, ValueError):
+        value = float(_DEFAULT_CONFIG["amboss_random_probability"])
+    return max(_MIN_RANDOM_PROBABILITY, min(_MAX_RANDOM_PROBABILITY, value))
+
+
+def get_amboss_fetch_preferences() -> Tuple[str, float]:
+    """Liefert den persistent gespeicherten Abrufmodus und die Zufallswahrscheinlichkeit."""
+
+    data = _load_config()
+    mode = _sanitize_fetch_mode(data.get("amboss_fetch_mode", AMBOSS_FETCH_RANDOM))
+    probability = _sanitize_probability(data.get("amboss_random_probability", _DEFAULT_CONFIG["amboss_random_probability"]))
+    return mode, probability
+
+
+def set_amboss_fetch_mode(mode: str) -> None:
+    """Persistiert den gewünschten Abrufmodus für den AMBOSS-MCP."""
+
+    config = _load_config()
+    config["amboss_fetch_mode"] = _sanitize_fetch_mode(mode)
+    _save_config(config)
+
+
+def set_amboss_random_probability(probability: float) -> None:
+    """Speichert die gewünschte Zufallswahrscheinlichkeit dauerhaft."""
+
+    config = _load_config()
+    config["amboss_random_probability"] = _sanitize_probability(probability)
+    _save_config(config)
 
 
 def _evaluate_fix_state(

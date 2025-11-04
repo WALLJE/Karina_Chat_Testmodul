@@ -13,12 +13,18 @@ from module.fallverwaltung import (
     speichere_fallbeispiel,
 )
 from module.fall_config import (
+    AMBOSS_FETCH_ALWAYS,
+    AMBOSS_FETCH_IF_EMPTY,
+    AMBOSS_FETCH_RANDOM,
     clear_fixed_behavior,
     clear_fixed_scenario,
+    get_amboss_fetch_preferences,
     get_behavior_fix_state,
     get_fall_fix_state,
     get_config_file_status,
     get_feedback_mode_fix_info,
+    set_amboss_fetch_mode,
+    set_amboss_random_probability,
     set_feedback_mode_fix,
     clear_feedback_mode_fix,
     set_fixed_behavior,
@@ -240,6 +246,80 @@ if persisted_active:
     )
 else:
     st.caption("Keine persistente ChatGPT+AMBOSS-Voreinstellung aktiv.")
+
+st.subheader("AMBOSS-Abrufsteuerung")
+st.write(
+    "Lege fest, ob der AMBOSS-MCP bei jedem Fall neu kontaktiert wird oder ob die"
+    " gespeicherten Zusammenfassungen aus der Excel-Tabelle genutzt werden."
+)
+
+amboss_mode, amboss_probability = get_amboss_fetch_preferences()
+amboss_mode_options = {
+    "🔁 Immer MCP abrufen": AMBOSS_FETCH_ALWAYS,
+    "📄 Nur abrufen, wenn das Tabellenfeld leer ist": AMBOSS_FETCH_IF_EMPTY,
+    "🎲 Zufällig abrufen (mit Wahrscheinlichkeit)": AMBOSS_FETCH_RANDOM,
+}
+
+if amboss_mode not in amboss_mode_options.values():
+    amboss_mode = AMBOSS_FETCH_RANDOM
+
+amboss_labels = list(amboss_mode_options.keys())
+amboss_default_index = amboss_labels.index(
+    next(label for label, value in amboss_mode_options.items() if value == amboss_mode)
+)
+
+selected_amboss_label = st.radio(
+    "Strategie für AMBOSS-Aufrufe",
+    amboss_labels,
+    index=amboss_default_index,
+    key="admin_amboss_mode",
+    help=(
+        "Bei deaktiviertem Abruf wird ausschließlich die Spalte 'Amboss_Input' genutzt."
+        " Die Einstellung wirkt sich dauerhaft auf neue Sitzungen aus."
+    ),
+)
+
+selected_amboss_mode = amboss_mode_options[selected_amboss_label]
+if selected_amboss_mode != amboss_mode:
+    set_amboss_fetch_mode(selected_amboss_mode)
+    amboss_mode = selected_amboss_mode
+    if amboss_mode == AMBOSS_FETCH_ALWAYS:
+        st.success("Persistente Einstellung: AMBOSS wird für jedes Szenario neu geladen.")
+    elif amboss_mode == AMBOSS_FETCH_IF_EMPTY:
+        st.success("Persistente Einstellung: AMBOSS wird nur bei leeren Tabellenfeldern abgerufen.")
+    else:
+        st.success("Persistente Einstellung: Zufallsabruf ist aktiv.")
+
+if amboss_mode == AMBOSS_FETCH_RANDOM:
+    probability_slider = st.slider(
+        "Wahrscheinlichkeit für den zufälligen Abruf",
+        min_value=0.0,
+        max_value=1.0,
+        value=float(round(amboss_probability, 2)),
+        step=0.05,
+        help=(
+            "Beispiel: 0.20 entspricht einer 20%-Chance (ca. 1 von 5 Fällen)."
+            " Der Wert gilt für künftige Sitzungen im Zufallsmodus."
+        ),
+        key="admin_amboss_probability",
+    )
+    if abs(probability_slider - amboss_probability) > 0.0001:
+        set_amboss_random_probability(probability_slider)
+        amboss_probability = probability_slider
+        st.success(
+            "Zufallswahrscheinlichkeit aktualisiert: {wert:.0%}.".format(wert=amboss_probability)
+        )
+    st.caption(
+        "Aktuelle Einstellung: Der MCP wird mit einer Wahrscheinlichkeit von {wert:.0%} neu aufgerufen.".format(
+            wert=amboss_probability
+        )
+    )
+else:
+    st.caption(
+        "Zufallsmodus inaktiv. Hinterlegte Wahrscheinlichkeit: {wert:.0%} (wird wieder genutzt, sobald der Zufallsmodus aktiviert wird).".format(
+            wert=amboss_probability
+        )
+    )
 
 st.subheader("Adminmodus")
 st.write("Der Adminmodus ist aktiv. Bei Bedarf kannst du ihn hier wieder deaktivieren.")

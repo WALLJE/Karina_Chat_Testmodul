@@ -69,6 +69,7 @@ Der Admin-Modus ermöglicht es befugten Personen, Inhalte und Konfigurationen de
 - **Import & Export:** Fallbeispiele können über die Admin-Oberfläche importiert (z. B. aus `fallbeispiele.xlsx`) oder als Sicherung exportiert werden.
 - **Bearbeitung:** Einzelne Fälle lassen sich duplizieren, editieren und archivieren. Änderungen werden sofort gespeichert.
 - **Validierung:** Eingebettete Prüfmechanismen verhindern inkonsistente Datensätze und geben bei Bedarf deutschsprachige Fehlermeldungen aus.
+- **AMBOSS-Input verwalten:** Die Spalte `Amboss_Input` der Excel-Datei speichert die komprimierte AMBOSS-Zusammenfassung je Szenario. Der Adminbereich erlaubt, zwischen dauerhaftem MCP-Abruf, Abruf nur bei leeren Feldern oder einem zufälligen Refresh (mit einstellbarer Wahrscheinlichkeit) zu wechseln.
 
 ### Feedback- und Befundmodule
 - **Konfiguration:** Administratorinnen und Administratoren können Feedbackregeln anpassen und neue Befundvorlagen hinzufügen.
