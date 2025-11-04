@@ -262,7 +262,7 @@ def fallauswahl_prompt(
 
     ladeaufgaben = [
         "Übernehme zufällig ausgewähltes Fallszenario",
-        "Bereite AMBOSS-Input vor",
+        "Bereite Wissens-Input vor",
         "Fasse Ergebnisse zusammen",
     ]
 
