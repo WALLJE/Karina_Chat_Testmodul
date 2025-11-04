@@ -90,16 +90,16 @@ Im Wartezimmer sitzen weitere {patient_forms.plural_phrase()} mit anderen Krankh
             # Wir greifen hier erneut auf den Namen zu, um den Übergang möglichst patientenzentriert zu formulieren.
             patient_name = st.session_state.get("patient_name", "").strip()
             if patient_name:
-                start_hinweis = f"✅ Fallvorbereitung abgeschlossen. Beginnen Sie das Gespräch mit {patient_name}."
+                start_hinweis = f"Fallvorbereitung abgeschlossen. Beginnen Sie das Gespräch mit {patient_name}."
             else:
-                start_hinweis = "✅ Fallvorbereitung abgeschlossen. Beginnen Sie das Gespräch mit der simulierten Patientin oder dem Patienten."
+                start_hinweis = "Fallvorbereitung abgeschlossen. Beginnen Sie das Gespräch mit der simulierten Patientin oder dem Patienten."
             st.success(start_hinweis)
     elif not lade_callback:
         # Falls kein Ladevorgang benötigt wird, ist der Button sofort verfügbar.
         st.session_state.instruktion_loader_fertig = True
 
     if st.session_state.instruktion_loader_fertig:
-        fortsetzen_placeholder.page_link("pages/1_Anamnese.py", label="✅ Verstanden – weiter zur Anamnese")
+        fortsetzen_placeholder.page_link("pages/1_Anamnese.py", label="✅ Verstanden")
 
     st.stop()
 
