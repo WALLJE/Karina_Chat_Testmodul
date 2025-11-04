@@ -121,6 +121,27 @@ if "amboss_result" in st.session_state:
 else:
     st.info("Noch kein AMBOSS-Ergebnis im aktuellen Verlauf gespeichert.")
 
+# Ergänzende Statusinformation zur Excel-Persistierung – so lässt sich nachvollziehen,
+# ob eine neue Zusammenfassung geschrieben, übernommen oder aufgrund einer Einstellung
+# übersprungen wurde. Die Informationen werden im Ladeprozess zentral gepflegt und
+# hier lediglich ausgegeben.
+persist_info = st.session_state.get("amboss_persist_info")
+if persist_info:
+    status_label = persist_info.get("status", "unbekannt")
+    hinweistext = persist_info.get("hinweis", "Keine Detailbeschreibung verfügbar.")
+    quelle = persist_info.get("quelle", "unbekannt")
+    st.info(
+        "📘 Status AMBOSS-Zusammenfassung: {status} – {hinweis} (Quelle: {quelle}).".format(
+            status=status_label,
+            hinweis=hinweistext,
+            quelle=quelle,
+        )
+    )
+else:
+    st.info(
+        "📘 Status AMBOSS-Zusammenfassung: Noch keine Aktion durchgeführt (z. B. weil kein Fall geladen wurde)."
+    )
+
 # Wenn lediglich ein fragmentarisches Ergebnis vorliegt, wird dieses klar
 # gekennzeichnet. Administrator*innen sehen zusätzlich das konservierte
 # Teilfragment, um bei Bedarf eigenständig zu prüfen, ob daraus weiterer

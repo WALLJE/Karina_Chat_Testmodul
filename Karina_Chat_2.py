@@ -3,6 +3,7 @@
 import streamlit as st
 from openai import OpenAI
 import os
+from datetime import datetime
 
 # externe Codes einbinden
 from diagnostikmodul import diagnostik_und_befunde_routine
@@ -25,6 +26,7 @@ from module.fallverwaltung import (
     prepare_fall_session_state,
 )
 from module.fall_config import clear_fixed_scenario, get_fall_fix_state
+from module.feedback_mode import determine_feedback_mode
 from module.footer import copyright_footer
 
 # Für Einbinden Supabase Tabellen
@@ -137,6 +139,10 @@ def speichere_gpt_feedback_in_supabase():
 
 #---------------- Routinen Ende -------------------
 initialisiere_session_state()
+# Der Feedback-Modus wird gleich beim Start festgelegt, damit der Adminbereich
+# unmittelbar eine aussagekräftige Statusmeldung anzeigen kann. Die Funktion
+# berücksichtigt bestehende Übersteuerungen und persistierte Einstellungen.
+determine_feedback_mode()
 
 #####
 # Testlauf

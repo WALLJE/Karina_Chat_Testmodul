@@ -33,6 +33,7 @@ DEFAULT_FALLDATEI_URL = (
 )
 
 _AMBOSS_INPUT_COLUMN = "Amboss_Input"
+_AMBOSS_PERSIST_STATE_KEY = "amboss_persist_info"
 
 _FALL_SESSION_KEYS: set[str] = {
     "diagnose_szenario",
@@ -105,20 +106,28 @@ def _should_refresh_amboss_input(*, stored_value: str, mode: str, probability: f
 
 def _persist_amboss_input(
     df: pd.DataFrame, *, row_index: Any, value: str, pfad: str
-) -> None:
-    """Speichert die neue Zusammenfassung in der Excel-Tabelle."""
+) -> tuple[bool, str | None]:
+    """Speichert die neue Zusammenfassung in der Excel-Tabelle und meldet den Status zurück.
+
+    Die Rückgabe unterscheidet klar zwischen Erfolg (``True``) und Misserfolg (``False``).
+    Zusätzlich wird – für die Anzeige im Adminbereich – ein erklärender Hinweistext
+    zurückgegeben, der beschreibt, warum ein Speichervorgang eventuell abgebrochen wurde.
+    """
 
     if not value:
-        return
+        # Ohne Inhalt besteht kein Speicherbedarf; wir liefern eine neutrale Meldung zurück.
+        return False, "Kein Text vorhanden – es wurde nichts gespeichert."
 
     try:
         if _AMBOSS_INPUT_COLUMN not in df.columns:
+            # Die Spalte wird bei Bedarf automatisch angelegt, damit neue Tabellenstände
+            # ohne manuelle Anpassungen kompatibel bleiben.
             df[_AMBOSS_INPUT_COLUMN] = ""
         if row_index not in df.index:
             st.error(
                 "❌ Die AMBOSS-Zusammenfassung konnte nicht gespeichert werden: Index wurde in der Tabelle nicht gefunden."
             )
-            return
+            return False, "Fehler: Szenario-Index nicht in der Tabelle gefunden."
         df.at[row_index, _AMBOSS_INPUT_COLUMN] = value
     except Exception as exc:  # pragma: no cover - reine Pandas-Fehlerbehandlung
         st.error(
@@ -128,7 +137,7 @@ def _persist_amboss_input(
         st.info(
             "Debug-Tipp: Prüfe, ob die Tabelle Schreibrechte besitzt und ob der Index der Fallzeile stabil ist."
         )
-        return
+        return False, "Fehler beim Aktualisieren des DataFrames (siehe Fehlermeldung im UI)."
 
     try:
         df.to_excel(pfad, index=False, engine="openpyxl")
@@ -141,6 +150,9 @@ def _persist_amboss_input(
         st.info(
             "Debug-Tipp: Überprüfe Schreibrechte und stelle sicher, dass keine andere Anwendung die Datei blockiert."
         )
+        return False, "Fehler beim Schreiben der Excel-Datei (siehe Fehlermeldung im UI)."
+
+    return True, "Zusammenfassung erfolgreich gespeichert."
 
 
 def _clear_amboss_session_cache() -> None:
@@ -153,6 +165,22 @@ def _clear_amboss_session_cache() -> None:
     st.session_state.pop("amboss_result_sicherung", None)
     clear_cached_summary()
     st.session_state.pop("amboss_summary_source", None)
+
+
+def _protokolliere_amboss_status(*, status: str, hinweis: str, quelle: str | None = None) -> None:
+    """Hinterlegt den letzten Persistierungsstatus für den Adminbereich.
+
+    Die Informationen landen gesammelt im Session State, damit Administrator*innen
+    jederzeit nachvollziehen können, ob der Excel-Eintrag erfolgte, übersprungen
+    oder durch eine Einstellung verhindert wurde. ``quelle`` beschreibt optional,
+    ob der Text aus der Excel-Datei, dem MCP oder einem Fallback stammt.
+    """
+
+    st.session_state[_AMBOSS_PERSIST_STATE_KEY] = {
+        "status": status,
+        "hinweis": hinweis,
+        "quelle": quelle or "unbekannt",
+    }
 
 # Übersicht aller verfügbaren Verhaltensoptionen mit sprechenden Beschreibungen. Die Schlüssel werden im
 # Session State abgelegt, damit eine Fixierung administrativ gesteuert werden kann.
@@ -249,20 +277,35 @@ def fallauswahl_prompt(
 
     if df.empty:
         st.error("📄 Die Falltabelle ist leer oder konnte nicht geladen werden.")
+        _protokolliere_amboss_status(
+            status="fehler",
+            hinweis="Falltabelle leer oder nicht geladen – kein AMBOSS-Abgleich möglich.",
+            quelle="keine",
+        )
         return
 
     try:
         fall = _waehle_fall(df, szenario)
     except (IndexError, KeyError, ValueError) as exc:
         st.error(f"❌ Fehler beim Auswählen des Falls: {exc}")
+        _protokolliere_amboss_status(
+            status="fehler",
+            hinweis="Fall konnte nicht ausgewählt werden – siehe Fehlermeldung.",
+            quelle="keine",
+        )
         return
     except Exception as exc:  # pragma: no cover - defensive fallback
         st.error(f"❌ Unerwarteter Fehler beim Laden des Falls: {exc}")
+        _protokolliere_amboss_status(
+            status="fehler",
+            hinweis="Unerwarteter Fehler bei der Fallauswahl – Details siehe Fehlermeldung.",
+            quelle="keine",
+        )
         return
 
     ladeaufgaben = [
         "Übernehme zufällig ausgewähltes Fallszenario",
-        "Bereite Wissens-Input vor",
+        "Prüfe und sichere AMBOSS-Zusammenfassung",
         "Fasse Ergebnisse zusammen",
     ]
 
@@ -306,6 +349,10 @@ def fallauswahl_prompt(
         )
 
         fetch_successful = False
+        persist_status: str | None = None
+        persist_hint: str | None = None
+        persist_source: str | None = None
+
         if st.session_state.diagnose_szenario and fetch_required:
             try:
                 call_amboss_search(query=st.session_state.diagnose_szenario)
@@ -347,17 +394,38 @@ def fallauswahl_prompt(
                     "❌ Die Hintergrund-Zusammenfassung des AMBOSS-Payloads ist fehlgeschlagen: "
                     f"{exc}"
                 )
+                persist_status = "fehler"
+                persist_hint = "GPT-Zusammenfassung fehlgeschlagen – Excel wurde nicht aktualisiert."
+                persist_source = "mcp"
             else:
                 if generated_summary:
                     summary_text = generated_summary.strip()
-                    _persist_amboss_input(
+                    erfolg, meldung = _persist_amboss_input(
                         df,
                         row_index=fall.name,
                         value=summary_text,
                         pfad=pfad,
                     )
+                    if erfolg:
+                        persist_status = "gespeichert"
+                        persist_hint = "Neue AMBOSS-Zusammenfassung via MCP erzeugt und in Excel gesichert."
+                        persist_source = "mcp"
+                    else:
+                        persist_status = "fehler"
+                        persist_hint = meldung or "Unbekannter Fehler beim Speichern der Zusammenfassung."
+                        persist_source = "mcp"
                     st.session_state["amboss_summary_source"] = "mcp"
                     st.session_state["amboss_payload_summary"] = summary_text
+                else:
+                    persist_status = "leer"
+                    persist_hint = "MCP-Antwort geliefert, aber keine verwertbare Zusammenfassung erhalten."
+                    persist_source = "mcp"
+        elif fetch_successful and (not client or patient_age_for_summary is None):
+            persist_status = "fehler"
+            persist_hint = (
+                "MCP-Antwort vorhanden, aber fehlender OpenAI-Client oder kein Alter hinterlegt – Zusammenfassung nicht erstellt."
+            )
+            persist_source = "mcp"
         elif not fetch_required and stored_amboss_input:
             # Sobald wir ausschließlich auf die Excel-Daten zurückgreifen,
             # säubern wir den Session-State-Digest und setzen die Zusammenfassung
@@ -366,6 +434,25 @@ def fallauswahl_prompt(
             clear_cached_summary()
             st.session_state["amboss_payload_summary"] = stored_amboss_input
             st.session_state["amboss_summary_source"] = "excel"
+            persist_status = "uebernommen"
+            if fetch_mode == AMBOSS_FETCH_IF_EMPTY:
+                persist_hint = "Admin-Einstellung 'nur wenn Feld leer' aktiv – vorhandene Excel-Zusammenfassung genutzt."
+            elif fetch_mode == AMBOSS_FETCH_RANDOM:
+                persist_hint = (
+                    "Zufallsmodus aktiv – diesmal wurde auf den gespeicherten Excel-Text zurückgegriffen (Wahrscheinlichkeit:"
+                    f" {fetch_probability:.0%})."
+                )
+            else:
+                persist_hint = "Gespeicherte Excel-Zusammenfassung verwendet."
+            persist_source = "excel"
+        elif fetch_required and not st.session_state.diagnose_szenario:
+            persist_status = "fehler"
+            persist_hint = "Kein Szenariotext vorhanden – MCP-Aufruf konnte nicht gestartet werden."
+            persist_source = "keine"
+        elif fetch_required and not fetch_successful:
+            persist_status = "fehler"
+            persist_hint = "MCP-Aufruf vorgesehen, aber fehlgeschlagen – vorhandene Daten werden falls möglich genutzt."
+            persist_source = "mcp"
 
         summary_text = (summary_text or "").strip()
         if summary_text and fetch_required and not fetch_successful:
@@ -375,9 +462,32 @@ def fallauswahl_prompt(
             clear_cached_summary()
             st.session_state["amboss_payload_summary"] = summary_text
             st.session_state["amboss_summary_source"] = "excel_fallback"
+            if persist_status != "gespeichert":
+                persist_status = "fallback"
+                persist_hint = (
+                    persist_hint
+                    or "Vorhandene Excel-Zusammenfassung als Fallback genutzt, da der MCP-Abruf nicht erfolgreich war."
+                )
+            persist_source = "excel"
         elif not summary_text:
             clear_cached_summary()
             st.session_state.pop("amboss_summary_source", None)
+            if persist_status is None:
+                persist_status = "leer"
+                persist_hint = "Keine AMBOSS-Zusammenfassung verfügbar – Excel-Zelle bleibt unverändert."
+                persist_source = "keine"
+
+        if persist_status is None:
+            # Fallback, falls keiner der obigen Zweige eine Nachricht hinterlassen hat.
+            persist_status = "unveraendert"
+            persist_hint = "Keine Änderungen an der AMBOSS-Zusammenfassung erforderlich."
+            persist_source = st.session_state.get("amboss_summary_source") or "keine"
+
+        _protokolliere_amboss_status(
+            status=persist_status,
+            hinweis=persist_hint,
+            quelle=persist_source,
+        )
 
         indikator.advance(1)
 

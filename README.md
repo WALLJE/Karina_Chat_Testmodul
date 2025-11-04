@@ -70,11 +70,13 @@ Der Admin-Modus ermöglicht es befugten Personen, Inhalte und Konfigurationen de
 - **Bearbeitung:** Einzelne Fälle lassen sich duplizieren, editieren und archivieren. Änderungen werden sofort gespeichert.
 - **Validierung:** Eingebettete Prüfmechanismen verhindern inkonsistente Datensätze und geben bei Bedarf deutschsprachige Fehlermeldungen aus.
 - **AMBOSS-Input verwalten:** Die Spalte `Amboss_Input` der Excel-Datei speichert die komprimierte AMBOSS-Zusammenfassung je Szenario. Der Adminbereich erlaubt, zwischen dauerhaftem MCP-Abruf, Abruf nur bei leeren Feldern oder einem zufälligen Refresh (mit einstellbarer Wahrscheinlichkeit) zu wechseln.
+- **Statuskontrolle:** Während der Fallvorbereitung zeigt der Spinner explizit an, dass der AMBOSS-Text geprüft und bei Bedarf gespeichert wird. Im Adminbereich erscheint anschließend eine Statusmeldung, ob die Excel-Aktualisierung erfolgreich war oder aus welchen Gründen sie übersprungen wurde (z. B. Zufallsmodus, Override, Fehler).
 
 ### Feedback- und Befundmodule
 - **Konfiguration:** Administratorinnen und Administratoren können Feedbackregeln anpassen und neue Befundvorlagen hinzufügen.
 - **Überwachung:** Es gibt Einsicht in Bewertungsverläufe, sodass Ausbildungsfortschritte nachvollzogen werden können.
 - **Anpassung:** Schwellenwerte für automatische Bewertungen lassen sich konfigurieren, um unterschiedliche Ausbildungsniveaus zu berücksichtigen.
+- **Frühe Modusbestimmung:** Der aktive Feedback-Modus wird bereits beim Start festgelegt, damit der Adminbereich sofort den tatsächlichen Status ausweist.
 
 ### Diagnostische Funktionen
 - **Log-Ansicht:** Der Admin-Modus bietet Zugriff auf System-Logs, in denen Nutzerinteraktionen und Modulwechsel dokumentiert sind.
