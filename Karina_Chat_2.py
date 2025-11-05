@@ -20,7 +20,6 @@ from module.gpt_feedback import (
 )
 from module.loading_indicator import task_spinner
 from module.fallverwaltung import (
-    DEFAULT_FALLDATEI_URL,
     fallauswahl_prompt,
     lade_fallbeispiele,
     prepare_fall_session_state,
@@ -28,14 +27,6 @@ from module.fallverwaltung import (
 from module.fall_config import clear_fixed_scenario, get_fall_fix_state
 from module.feedback_mode import determine_feedback_mode
 from module.footer import copyright_footer
-
-# Für Einbinden Supabase Tabellen
-
-from supabase import create_client, Client
-# Supabase initialisieren
-supabase_url = st.secrets["supabase"]["url"]
-supabase_key = st.secrets["supabase"]["key"]
-supabase: Client = create_client(supabase_url, supabase_key)
 
 # Open AI API-Key setzen
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -169,7 +160,7 @@ def fuehre_fall_vorbereitung_durch() -> None:
     # Session State vor; so vermeiden wir unnötige Netzwerkanfragen während einer Sitzung.
     szenario_df = st.session_state.get("fallliste_df")
     if szenario_df is None:
-        szenario_df = lade_fallbeispiele(url=DEFAULT_FALLDATEI_URL)
+        szenario_df = lade_fallbeispiele()
         st.session_state["fallliste_df"] = szenario_df
 
     if szenario_df.empty:

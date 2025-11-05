@@ -122,7 +122,7 @@ if "amboss_result" in st.session_state:
 else:
     st.info("Noch kein AMBOSS-Ergebnis im aktuellen Verlauf gespeichert.")
 
-# Ergänzende Statusinformation zur Excel-Persistierung – so lässt sich nachvollziehen,
+# Ergänzende Statusinformation zur Supabase-Persistierung – so lässt sich nachvollziehen,
 # ob eine neue Zusammenfassung geschrieben, übernommen oder aufgrund einer Einstellung
 # übersprungen wurde. Die Informationen werden im Ladeprozess zentral gepflegt und
 # hier lediglich ausgegeben.
@@ -293,7 +293,7 @@ else:
 st.subheader("AMBOSS-Abrufsteuerung")
 st.write(
     "Lege fest, ob der AMBOSS-MCP bei jedem Fall neu kontaktiert wird oder ob die"
-    " gespeicherten Zusammenfassungen aus der Excel-Tabelle genutzt werden."
+    " gespeicherten Zusammenfassungen aus der Supabase-Tabelle genutzt werden."
 )
 
 amboss_mode, amboss_probability = get_amboss_fetch_preferences()
@@ -377,10 +377,10 @@ if st.button("Adminmodus beenden", type="primary"):
 
 st.subheader("Fallverwaltung")
 
-fall_df = lade_fallbeispiele(pfad="fallbeispiele.xlsx")
+fall_df = lade_fallbeispiele()
 
 if fall_df.empty:
-    st.info("Die Fallliste konnte nicht geladen werden. Bitte prüfe die Datei 'fallbeispiele.xlsx'.")
+    st.info("Die Fallliste konnte nicht geladen werden. Bitte prüfe die Supabase-Verbindung und Tabellenrechte.")
 elif "Szenario" not in fall_df.columns:
     st.error("Die Fallliste enthält keine Spalte 'Szenario'.")
 else:
@@ -594,7 +594,7 @@ else:
                 st.error("\n".join(fehlermeldungen))
             else:
                 aktualisiert, fehler = speichere_fallbeispiel(
-                    neuer_fall, pfad="fallbeispiele.xlsx"
+                    neuer_fall
                 )
                 if fehler:
                     st.error(f"Speichern fehlgeschlagen: {fehler}")
