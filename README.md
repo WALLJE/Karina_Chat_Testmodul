@@ -71,6 +71,7 @@ Der Admin-Modus ermöglicht es befugten Personen, Inhalte und Konfigurationen de
 - **Validierung:** Eingebettete Prüfmechanismen verhindern inkonsistente Datensätze und geben bei Bedarf deutschsprachige Fehlermeldungen aus.
 - **AMBOSS-Input verwalten:** Die Spalte `Amboss_Input` der Excel-Datei speichert die komprimierte AMBOSS-Zusammenfassung je Szenario. Der Adminbereich erlaubt, zwischen dauerhaftem MCP-Abruf, Abruf nur bei leeren Feldern oder einem zufälligen Refresh (mit einstellbarer Wahrscheinlichkeit) zu wechseln.
 - **Statuskontrolle:** Während der Fallvorbereitung zeigt der Spinner explizit an, dass der AMBOSS-Text geprüft und bei Bedarf gespeichert wird. Im Adminbereich erscheint anschließend eine Statusmeldung, ob die Excel-Aktualisierung erfolgreich war oder aus welchen Gründen sie übersprungen wurde (z. B. Zufallsmodus, Override, Fehler).
+- **Persistente Admin-Einstellungen:** Fixierungen für Szenario, Verhalten sowie der bevorzugte AMBOSS-Abrufmodus werden dauerhaft in der Supabase-Tabelle `fall_persistenzen` gespeichert. Der Adminbereich stellt die jeweils aktiven Werte in einem ausklappbaren Abschnitt dar.
 
 ### Feedback- und Befundmodule
 - **Konfiguration:** Administratorinnen und Administratoren können Feedbackregeln anpassen und neue Befundvorlagen hinzufügen.
@@ -85,7 +86,7 @@ Der Admin-Modus ermöglicht es befugten Personen, Inhalte und Konfigurationen de
 
 ### Debugging-Hilfen
 - **Deaktivierte Fallbacks:** Statt automatischer Fallbacks stehen kommentierte Debugging-Hilfen bereit. Diese können im Code aktiviert werden, um detaillierte Ausgaben zu erhalten.
-- **Konfigurationsdateien:** Hinweise innerhalb der Module beschreiben, wie Debugging-Flags gesetzt werden können, ohne das Live-System zu beeinträchtigen.
+- **Supabase-Persistenz prüfen:** Für detaillierte Analysen lässt sich die Tabelle `fall_persistenzen` direkt in Supabase öffnen. Zusätzlich zeigt der Adminbereich alle gespeicherten Werte in strukturierter Form an.
 - **Praxis-Tipp:** Vor jeder Aktivierung von Debugging-Hilfen sollte eine Sicherung der Konfiguration vorgenommen werden.
 
 ## Fehlerbehebung

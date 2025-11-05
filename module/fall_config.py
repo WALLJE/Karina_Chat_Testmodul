@@ -1,12 +1,12 @@
-"""Persistente Speicherung der Fixierungen für Szenario und Verhalten."""
+"""Persistente Speicherung der Fixierungen über eine Supabase-Tabelle."""
 
 from __future__ import annotations
 
-import json
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
-from threading import Lock
-from typing import Any, Dict, Tuple
+from datetime import datetime, timezone
+from typing import Any, Dict, Optional, Tuple
+
+import streamlit as st
+from supabase import Client, create_client
 
 __all__ = [
     "get_fall_fix_state",
@@ -19,131 +19,135 @@ __all__ = [
     "get_feedback_mode_fix_info",
     "set_feedback_mode_fix",
     "clear_feedback_mode_fix",
-    "get_config_file_status",
     "get_amboss_fetch_preferences",
     "set_amboss_fetch_mode",
     "set_amboss_random_probability",
+    "get_all_persisted_parameters",
     "AMBOSS_FETCH_ALWAYS",
     "AMBOSS_FETCH_IF_EMPTY",
     "AMBOSS_FETCH_RANDOM",
 ]
 
-# Der Datenordner liegt eine Ebene über dem Modulverzeichnis, damit alle Komponenten
-# auf denselben Speicherort zugreifen können. Sollte der Pfad nicht existieren, wird er
-# automatisch angelegt.
-_DATA_DIR = Path(__file__).resolve().parent.parent / "data"
-_DATA_DIR.mkdir(parents=True, exist_ok=True)
-_CONFIG_PATH = _DATA_DIR / "fall_config.json"
+# Name der Supabase-Tabelle, in der alle Fixierungen persistiert werden.
+_TABLE_NAME = "fall_persistenzen"
 
-# Die Lock-Instanz stellt sicher, dass Lese- und Schreibzugriffe threadsicher erfolgen.
-_LOCK = Lock()
-_DEFAULT_CONFIG: Dict[str, Any] = {
-    "fixed": False,
-    "scenario": "",
-    "fixed_at": "",
-    "behavior_fixed": False,
-    "behavior": "",
-    "behavior_fixed_at": "",
-    # Persistente Einstellung für den kombinierten ChatGPT+AMBOSS-Modus.
-    # Die Werte spiegeln exakt das Schema der übrigen Fixierungen wider, damit
-    # dieselben Hilfsfunktionen genutzt werden können.
-    "feedback_mode_fixed": False,
-    "feedback_mode": "",
-    "feedback_mode_fixed_at": "",
-    # Persistente Steuerung für den Abruf der AMBOSS-Daten.
-    # "amboss_fetch_mode" bestimmt, ob der MCP-Aufruf immer, nur bei leeren Zellen
-    # oder zufällig erfolgen soll. "amboss_random_probability" speichert die
-    # Wahrscheinlichkeit für den Zufallsmodus (0.0 bis 1.0).
-    "amboss_fetch_mode": "random",
-    "amboss_random_probability": 0.2,
-}
-
-# Gültige Konstanten für den Abrufmodus. Die Werte werden im Adminbereich als
-# Auswahl angezeigt und auch im Code genutzt, um Verzweigungen klar lesbar zu
-# halten.
+# Gültige Kennwörter für den AMBOSS-Abrufmodus. Die Werte werden eins-zu-eins in
+# der Datenbank abgelegt, sodass keine weiteren Transformationen nötig sind.
 AMBOSS_FETCH_ALWAYS = "always"
 AMBOSS_FETCH_IF_EMPTY = "if_empty"
 AMBOSS_FETCH_RANDOM = "random"
 
-# Zulässiger Bereich für die Zufallswahrscheinlichkeit. Durch die Konstanten
-# vermeiden wir magische Zahlen im Code und machen deutlich, wie Eingaben
-# begrenzt werden.
-_MIN_RANDOM_PROBABILITY = 0.0
-_MAX_RANDOM_PROBABILITY = 1.0
+# Standardwerte für den AMBOSS-Zufallsmodus. Sie greifen, wenn noch kein Eintrag
+# in Supabase existiert oder ein Datensatz unvollständig ist.
+_DEFAULT_AMBOSS_MODE = AMBOSS_FETCH_RANDOM
+_DEFAULT_AMBOSS_RANDOM_PROBABILITY = 0.2
+
+# Interner Cache. Er wird lazy geladen, damit beim Start der Anwendung sofort die
+# Datenbankwerte verfügbar sind, aber nicht bei jedem Zugriff ein Netzwerk-Call
+# ausgelöst wird. Nach jedem Schreibvorgang wird er invalidiert.
+_STATE_CACHE: Dict[str, Dict[str, Any]] | None = None
 
 
-def _normalize_config(data: Dict[str, Any]) -> Dict[str, Any]:
-    """Stellt sicher, dass alle erwarteten Schlüssel gesetzt und typisiert sind."""
+def _get_supabase_client() -> Client:
+    """Erstellt einen Supabase-Client anhand der Streamlit-Secrets."""
 
-    normalized = dict(_DEFAULT_CONFIG)
-    for key in normalized:
-        value = data.get(key, normalized[key])
-        if key in {"fixed", "behavior_fixed", "feedback_mode_fixed"}:
-            normalized[key] = bool(value)
-        else:
-            normalized[key] = str(value) if isinstance(normalized[key], str) else value
-    # Nach dem Kopieren der Basiswerte stellen wir sicher, dass der Abrufmodus nur
-    # zulässige Kennwörter enthält. Unbekannte Werte werden auf "random"
-    # zurückgesetzt, damit der Adminbereich stets einen gültigen Zustand anzeigt.
-    fetch_mode = str(normalized.get("amboss_fetch_mode", AMBOSS_FETCH_RANDOM)).strip()
-    if fetch_mode not in {AMBOSS_FETCH_ALWAYS, AMBOSS_FETCH_IF_EMPTY, AMBOSS_FETCH_RANDOM}:
-        fetch_mode = AMBOSS_FETCH_RANDOM
-    normalized["amboss_fetch_mode"] = fetch_mode
+    supabase_config = st.secrets.get("supabase")
+    if not supabase_config:
+        raise RuntimeError(
+            "Supabase-Konfiguration fehlt in st.secrets. Bitte prüfe den Abschnitt 'supabase' im Streamlit-Backend."
+        )
 
-    # Die Wahrscheinlichkeit wird in eine Gleitkommazahl umgewandelt und innerhalb
-    # des erlaubten Bereichs gekappt. So vermeiden wir Tippfehler (z. B. "120") und
-    # stellen sicher, dass der Zufallsmodus reproduzierbar arbeitet.
-    probability_raw = normalized.get("amboss_random_probability", _DEFAULT_CONFIG["amboss_random_probability"])
     try:
-        probability_value = float(probability_raw)
-    except (TypeError, ValueError):
-        probability_value = float(_DEFAULT_CONFIG["amboss_random_probability"])
-    probability_value = max(_MIN_RANDOM_PROBABILITY, min(_MAX_RANDOM_PROBABILITY, probability_value))
-    normalized["amboss_random_probability"] = probability_value
-    return normalized
+        url = supabase_config["url"]
+        key = supabase_config["key"]
+    except KeyError as exc:  # pragma: no cover - defensive Absicherung
+        raise RuntimeError(
+            "Supabase-Zugangsdaten sind unvollständig. Erwartet werden 'url' und 'key'."
+        ) from exc
 
-
-def _load_config() -> Dict[str, Any]:
-    """Liest die Konfiguration aus der JSON-Datei ein."""
-
-    with _LOCK:
-        if not _CONFIG_PATH.exists():
-            return dict(_DEFAULT_CONFIG)
-        try:
-            raw = _CONFIG_PATH.read_text(encoding="utf-8")
-        except OSError:
-            return dict(_DEFAULT_CONFIG)
     try:
-        data = json.loads(raw)
-    except json.JSONDecodeError:
-        # Falls die Datei korrupt ist, setzen wir sie auf den Standard zurück, damit
-        # die Anwendung nicht in einem ungültigen Zustand verbleibt.
-        _save_config(dict(_DEFAULT_CONFIG))
-        return dict(_DEFAULT_CONFIG)
-    if not isinstance(data, dict):
-        _save_config(dict(_DEFAULT_CONFIG))
-        return dict(_DEFAULT_CONFIG)
-    return _normalize_config(data)
+        return create_client(url, key)
+    except Exception as exc:  # pragma: no cover - defensive Absicherung
+        raise RuntimeError(
+            "Supabase-Verbindung konnte nicht hergestellt werden. Hinweise siehe Kommentare im Code."
+        ) from exc
 
 
-def _save_config(data: Dict[str, Any]) -> None:
-    """Schreibt die Konfiguration threadsicher in die JSON-Datei."""
+def _refresh_cache() -> Dict[str, Dict[str, Any]]:
+    """Lädt sämtliche Fixierungen aus Supabase und gibt sie als Wörterbuch zurück."""
 
-    serializable = _normalize_config(data)
-    with _LOCK:
+    client = _get_supabase_client()
+    try:
+        response = client.table(_TABLE_NAME).select("*").execute()
+    except Exception as exc:  # pragma: no cover - defensive Absicherung
+        raise RuntimeError(
+            "Abruf der Tabelle 'fall_persistenzen' fehlgeschlagen."
+        ) from exc
+
+    if getattr(response, "error", None):
+        raise RuntimeError(
+            f"Supabase meldet einen Fehler beim Laden der Fixierungen: {response.error}"
+        )
+
+    rows = response.data or []
+    result: Dict[str, Dict[str, Any]] = {}
+    for row in rows:
+        key = row.get("fix_key")
+        if not isinstance(key, str):
+            continue
+        key = key.strip()
+        if not key:
+            continue
+        # Bei doppelten Einträgen behalten wir den zuletzt aktualisierten Datensatz.
+        existing = result.get(key)
+        if existing:
+            existing_updated = existing.get("updated_at")
+            row_updated = row.get("updated_at")
+            if existing_updated and row_updated and str(row_updated) < str(existing_updated):
+                continue
+        result[key] = dict(row)
+    return result
+
+
+def _ensure_cache() -> Dict[str, Dict[str, Any]]:
+    """Stellt sicher, dass der Cache gefüllt ist, und liefert ihn zurück."""
+
+    global _STATE_CACHE
+    if _STATE_CACHE is None:
+        _STATE_CACHE = _refresh_cache()
+    return _STATE_CACHE
+
+
+def _invalidate_cache() -> None:
+    """Leert den Cache nach Schreiboperationen."""
+
+    global _STATE_CACHE
+    _STATE_CACHE = None
+
+
+def _parse_timestamp(value: Any) -> Optional[datetime]:
+    """Konvertiert ISO-Strings oder datetime-Objekte in UTC-normalisierte Werte."""
+
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+    if isinstance(value, str) and value:
+        text = value.strip()
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
         try:
-            _CONFIG_PATH.write_text(
-                json.dumps(serializable, ensure_ascii=False, indent=2),
-                encoding="utf-8",
-            )
-        except OSError:
-            # Für Debugging kann hier optional ein Logging aktiviert werden, das aufzeigt,
-            # weshalb ein Speichern fehlgeschlagen ist.
-            pass
+            parsed = datetime.fromisoformat(text)
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+    return None
 
 
 def _sanitize_fetch_mode(mode: str) -> str:
-    """Konvertiert beliebige Eingaben in einen der bekannten Abrufmodi."""
+    """Säubert beliebige Eingaben und reduziert sie auf bekannte Abrufmodi."""
 
     mode_clean = str(mode).strip().lower()
     if mode_clean not in {AMBOSS_FETCH_ALWAYS, AMBOSS_FETCH_IF_EMPTY, AMBOSS_FETCH_RANDOM}:
@@ -151,237 +155,208 @@ def _sanitize_fetch_mode(mode: str) -> str:
     return mode_clean
 
 
-def _sanitize_probability(probability: float) -> float:
-    """Schneidet eine übergebene Wahrscheinlichkeit auf den gültigen Bereich zu."""
+def _sanitize_probability(probability: Any) -> float:
+    """Schneidet Wahrscheinlichkeiten auf den Bereich 0.0 bis 1.0 zu."""
 
     try:
         value = float(probability)
     except (TypeError, ValueError):
-        value = float(_DEFAULT_CONFIG["amboss_random_probability"])
-    return max(_MIN_RANDOM_PROBABILITY, min(_MAX_RANDOM_PROBABILITY, value))
+        value = _DEFAULT_AMBOSS_RANDOM_PROBABILITY
+    if value < 0.0:
+        return 0.0
+    if value > 1.0:
+        return 1.0
+    return value
 
 
-def get_amboss_fetch_preferences() -> Tuple[str, float]:
-    """Liefert den persistent gespeicherten Abrufmodus und die Zufallswahrscheinlichkeit."""
-
-    data = _load_config()
-    mode = _sanitize_fetch_mode(data.get("amboss_fetch_mode", AMBOSS_FETCH_RANDOM))
-    probability = _sanitize_probability(data.get("amboss_random_probability", _DEFAULT_CONFIG["amboss_random_probability"]))
-    return mode, probability
-
-
-def set_amboss_fetch_mode(mode: str) -> None:
-    """Persistiert den gewünschten Abrufmodus für den AMBOSS-MCP."""
-
-    config = _load_config()
-    config["amboss_fetch_mode"] = _sanitize_fetch_mode(mode)
-    _save_config(config)
-
-
-def set_amboss_random_probability(probability: float) -> None:
-    """Speichert die gewünschte Zufallswahrscheinlichkeit dauerhaft."""
-
-    config = _load_config()
-    config["amboss_random_probability"] = _sanitize_probability(probability)
-    _save_config(config)
-
-
-def _evaluate_fix_state(
-    data: Dict[str, Any],
+def _persist_fixation(
+    fix_key: str,
     *,
-    fixed_key: str,
-    value_key: str,
-    timestamp_key: str,
-) -> Tuple[bool, str]:
-    """Prüft Ablaufzeiten und räumt ungültige Fixierungen automatisch auf."""
+    is_active: bool,
+    value_text: str = "",
+    value_number: Optional[float] = None,
+) -> None:
+    """Schreibt eine Fixierung in Supabase und aktualisiert anschließend den Cache."""
 
-    if not data.get(fixed_key):
-        return False, ""
+    client = _get_supabase_client()
+    payload: Dict[str, Any] = {
+        "fix_key": fix_key,
+        "is_active": is_active,
+        "value_text": value_text,
+        "value_number": value_number,
+        "fixed_at": datetime.now(timezone.utc).isoformat() if is_active else None,
+        "expires_at": None,
+    }
 
-    value_raw = str(data.get(value_key, ""))
-    timestamp_raw = str(data.get(timestamp_key, ""))
-
+    existing = _ensure_cache().get(fix_key)
     try:
-        fixed_at = datetime.fromisoformat(timestamp_raw)
-        if fixed_at.tzinfo is None:
-            fixed_at = fixed_at.replace(tzinfo=timezone.utc)
-    except ValueError:
-        fixed_at = None
+        if existing:
+            response = (
+                client.table(_TABLE_NAME)
+                .update(payload)
+                .eq("fix_key", fix_key)
+                .execute()
+            )
+        else:
+            response = client.table(_TABLE_NAME).insert(payload).execute()
+    except Exception as exc:  # pragma: no cover - defensive Absicherung
+        raise RuntimeError(
+            f"Schreiben der Fixierung '{fix_key}' in Supabase fehlgeschlagen."
+        ) from exc
 
-    now = datetime.now(timezone.utc)
-    if not fixed_at or now - fixed_at >= timedelta(hours=2) or not value_raw:
-        # Optionaler Debug-Hinweis: Bei Bedarf kann hier Logging aktiviert werden, das den Ablaufgrund protokolliert.
-        data.update({fixed_key: False, value_key: "", timestamp_key: ""})
-        _save_config(data)
-        return False, ""
+    if getattr(response, "error", None):
+        raise RuntimeError(
+            f"Supabase meldet beim Persistieren von '{fix_key}' einen Fehler: {response.error}"
+        )
 
-    return True, value_raw
+    _invalidate_cache()
+
+
+def _get_entry(fix_key: str) -> Dict[str, Any]:
+    """Liefert den aktuellen Datensatz einer Fixierung oder ein leeres Dict."""
+
+    data = _ensure_cache()
+    entry = data.get(fix_key)
+    if entry is None:
+        return {}
+    return dict(entry)
 
 
 def get_fall_fix_state() -> Tuple[bool, str]:
     """Gibt zurück, ob ein Szenario fixiert ist und welches Szenario gesetzt wurde."""
 
-    data = _load_config()
-    return _evaluate_fix_state(data, fixed_key="fixed", value_key="scenario", timestamp_key="fixed_at")
+    entry = _get_entry("scenario")
+    if not entry or not entry.get("is_active"):
+        return False, ""
+    value = str(entry.get("value_text", "")).strip()
+    return bool(value), value
 
 
 def set_fixed_scenario(szenario: str) -> None:
     """Aktiviert die Fall-Fixierung für das angegebene Szenario."""
 
     scenario_value = str(szenario).strip()
-    config = _load_config()
-    config.update(
-        {
-            "fixed": True,
-            "scenario": scenario_value,
-            "fixed_at": datetime.now(timezone.utc).isoformat(),
-        }
-    )
-    # Für Debugging kann hier optional ein Print-Statement aktiviert werden, um den Zeitpunkt der Fixierung zu prüfen.
-    _save_config(config)
+    if not scenario_value:
+        raise ValueError("Das zu fixierende Szenario darf nicht leer sein.")
+    _persist_fixation("scenario", is_active=True, value_text=scenario_value)
 
 
 def clear_fixed_scenario() -> None:
     """Deaktiviert die Fall-Fixierung und entfernt das gespeicherte Szenario."""
 
-    config = _load_config()
-    config.update({"fixed": False, "scenario": "", "fixed_at": ""})
-    _save_config(config)
+    _persist_fixation("scenario", is_active=False, value_text="", value_number=None)
 
 
 def get_behavior_fix_state() -> Tuple[bool, str]:
     """Gibt zurück, ob ein Verhalten fixiert ist und welches Kennwort gesetzt wurde."""
 
-    data = _load_config()
-    return _evaluate_fix_state(
-        data,
-        fixed_key="behavior_fixed",
-        value_key="behavior",
-        timestamp_key="behavior_fixed_at",
-    )
+    entry = _get_entry("behavior")
+    if not entry or not entry.get("is_active"):
+        return False, ""
+    value = str(entry.get("value_text", "")).strip()
+    return bool(value), value
 
 
 def set_fixed_behavior(behavior_key: str) -> None:
     """Aktiviert die Fixierung für das übergebene Verhalten."""
 
     behavior_value = str(behavior_key).strip()
-    config = _load_config()
-    config.update(
-        {
-            "behavior_fixed": True,
-            "behavior": behavior_value,
-            "behavior_fixed_at": datetime.now(timezone.utc).isoformat(),
-        }
-    )
-    # Für Fehlersuche kann hier ein Logging ergänzt werden, das den gesetzten Verhaltensschlüssel dokumentiert.
-    _save_config(config)
+    if not behavior_value:
+        raise ValueError("Der Verhaltensschlüssel darf nicht leer sein.")
+    _persist_fixation("behavior", is_active=True, value_text=behavior_value)
 
 
 def clear_fixed_behavior() -> None:
     """Deaktiviert die Verhaltens-Fixierung und setzt die Werte zurück."""
 
-    config = _load_config()
-    config.update({"behavior_fixed": False, "behavior": "", "behavior_fixed_at": ""})
-    _save_config(config)
+    _persist_fixation("behavior", is_active=False, value_text="", value_number=None)
 
 
 def get_feedback_mode_fix_state() -> Tuple[bool, str]:
     """Liefert, ob eine persistente Feedback-Mode-Fixierung aktiv ist."""
 
-    data = _load_config()
-    active, value = _evaluate_fix_state(
-        data,
-        fixed_key="feedback_mode_fixed",
-        value_key="feedback_mode",
-        timestamp_key="feedback_mode_fixed_at",
-    )
-    return active, value
+    entry = _get_entry("feedback_mode")
+    if not entry or not entry.get("is_active"):
+        return False, ""
+    value = str(entry.get("value_text", "")).strip()
+    return bool(value), value
 
 
-def get_feedback_mode_fix_info() -> Tuple[bool, str, timedelta]:
-    """Gibt zusätzliche Details zur verbleibenden Laufzeit der Fixierung zurück."""
+def get_feedback_mode_fix_info() -> Tuple[bool, str, Optional[datetime]]:
+    """Gibt zusätzliche Details zur zuletzt gesetzten Fixierung zurück."""
 
-    data = _load_config()
-    active, value = _evaluate_fix_state(
-        data,
-        fixed_key="feedback_mode_fixed",
-        value_key="feedback_mode",
-        timestamp_key="feedback_mode_fixed_at",
-    )
+    active, value = get_feedback_mode_fix_state()
     if not active:
-        return False, "", timedelta(0)
-
-    timestamp_raw = str(data.get("feedback_mode_fixed_at", ""))
-    try:
-        fixed_at = datetime.fromisoformat(timestamp_raw)
-        if fixed_at.tzinfo is None:
-            fixed_at = fixed_at.replace(tzinfo=timezone.utc)
-    except ValueError:
-        fixed_at = datetime.now(timezone.utc) - timedelta(hours=2)
-
-    now = datetime.now(timezone.utc)
-    remaining = (fixed_at + timedelta(hours=2)) - now
-    if remaining < timedelta(0):
-        remaining = timedelta(0)
-    return True, value, remaining
+        return False, "", None
+    entry = _get_entry("feedback_mode")
+    timestamp = _parse_timestamp(entry.get("fixed_at"))
+    return True, value, timestamp
 
 
 def set_feedback_mode_fix(mode: str) -> None:
-    """Persistiert den gewünschten Feedback-Modus für zwei Stunden."""
+    """Persistiert den gewünschten Feedback-Modus dauerhaft."""
 
     mode_value = str(mode).strip()
-    config = _load_config()
-    config.update(
-        {
-            "feedback_mode_fixed": True,
-            "feedback_mode": mode_value,
-            "feedback_mode_fixed_at": datetime.now(timezone.utc).isoformat(),
-        }
-    )
-    # Für Fehlersuche kann hier optional ein Logging ergänzt werden, das festhält,
-    # wann die Persistierung gesetzt wurde.
-    _save_config(config)
+    if not mode_value:
+        raise ValueError("Der Feedback-Modus darf nicht leer sein.")
+    _persist_fixation("feedback_mode", is_active=True, value_text=mode_value)
 
 
 def clear_feedback_mode_fix() -> None:
     """Entfernt die persistente Feedback-Mode-Fixierung."""
 
-    config = _load_config()
-    config.update(
-        {
-            "feedback_mode_fixed": False,
-            "feedback_mode": "",
-            "feedback_mode_fixed_at": "",
-        }
+    _persist_fixation("feedback_mode", is_active=False, value_text="", value_number=None)
+
+
+def get_amboss_fetch_preferences() -> Tuple[str, float]:
+    """Liefert den persistent gespeicherten Abrufmodus und die Zufallswahrscheinlichkeit."""
+
+    entry = _get_entry("amboss_mode")
+    if not entry:
+        return _DEFAULT_AMBOSS_MODE, _DEFAULT_AMBOSS_RANDOM_PROBABILITY
+
+    mode = _sanitize_fetch_mode(entry.get("value_text", _DEFAULT_AMBOSS_MODE))
+    probability = _sanitize_probability(entry.get("value_number", _DEFAULT_AMBOSS_RANDOM_PROBABILITY))
+    return mode, probability
+
+
+def set_amboss_fetch_mode(mode: str) -> None:
+    """Persistiert den gewünschten Abrufmodus für den AMBOSS-MCP."""
+
+    sanitized_mode = _sanitize_fetch_mode(mode)
+    _, probability = get_amboss_fetch_preferences()
+    _persist_fixation(
+        "amboss_mode",
+        is_active=True,
+        value_text=sanitized_mode,
+        value_number=probability,
     )
-    _save_config(config)
 
 
-def get_config_file_status() -> tuple[bool, str]:
-    """Prüft, ob die JSON-Konfigurationsdatei vorhanden und lesbar ist."""
+def set_amboss_random_probability(probability: float) -> None:
+    """Speichert die gewünschte Zufallswahrscheinlichkeit dauerhaft."""
 
-    # Wir liefern zwecks Anzeige im Adminbereich einen booleschen Status sowie
-    # eine erklärende Nachricht zurück. Dadurch können Admins schnell erkennen,
-    # ob die Fixierungsinformationen aus ``fall_config.json`` zuverlässig
-    # geladen werden. Für detaillierte Fehlersuche lässt sich die Nachricht
-    # bei Bedarf im UI erweitern oder loggen.
-    if not _CONFIG_PATH.exists():
-        return False, "Konfigurationsdatei wurde nicht erstellt - keine Fixierung aktiv."
+    mode, _ = get_amboss_fetch_preferences()
+    sanitized_probability = _sanitize_probability(probability)
+    _persist_fixation(
+        "amboss_mode",
+        is_active=True,
+        value_text=mode,
+        value_number=sanitized_probability,
+    )
 
-    try:
-        raw = _CONFIG_PATH.read_text(encoding="utf-8")
-    except OSError as exc:
-        return False, f"Die Konfigurationsdatei konnte nicht gelesen werden: {exc}"
 
-    if not raw.strip():
-        # Eine leere Datei behandeln wir als Hinweis darauf, dass noch keine
-        # Fixierungen gespeichert wurden. Technisch ist das in Ordnung, daher
-        # liefern wir einen Erfolgshinweis mit zusätzlicher Erläuterung.
-        return True, "Die Konfigurationsdatei ist leer, kann aber gelesen werden."
+def get_all_persisted_parameters() -> Dict[str, Dict[str, Any]]:
+    """Liefert eine lesbare Übersicht aller aktuell gespeicherten Parameter."""
 
-    try:
-        json.loads(raw)
-    except json.JSONDecodeError as exc:
-        return False, f"Die Konfigurationsdatei enthält ungültiges JSON: {exc}"
-
-    return True, "Die Konfigurationsdatei ist vorhanden und gültig."
+    data = _ensure_cache()
+    overview: Dict[str, Dict[str, Any]] = {}
+    for key, entry in data.items():
+        overview[key] = {
+            "aktiv": bool(entry.get("is_active")),
+            "wert_text": entry.get("value_text", ""),
+            "wert_nummer": entry.get("value_number"),
+            "gesetzt_am": entry.get("fixed_at"),
+            "letzte_aktualisierung": entry.get("updated_at"),
+        }
+    return overview
