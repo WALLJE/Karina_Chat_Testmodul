@@ -93,17 +93,72 @@ Im Wartezimmer sitzen weitere {patient_forms.plural_phrase()} mit anderen Krankh
                 start_hinweis = f"Fallvorbereitung abgeschlossen. Beginnen Sie das Gespräch mit {patient_name}."
             else:
                 start_hinweis = "Fallvorbereitung abgeschlossen. Beginnen Sie das Gespräch mit der simulierten Patientin oder dem Patienten."
-            st.success(start_hinweis)
+            # Der Hinweis zur abgeschlossenen Vorbereitung soll laut Vorgabe sachlich bleiben,
+            # daher verzichten wir auf grüne Hervorhebungen wie ``st.success`` und geben den
+            # Text bewusst neutral aus.
+            st.markdown(f"**{start_hinweis}**")
     elif not lade_callback:
         # Falls kein Ladevorgang benötigt wird, ist der Button sofort verfügbar.
         st.session_state.instruktion_loader_fertig = True
 
     if st.session_state.instruktion_loader_fertig:
         # Sobald die Vorbereitung abgeschlossen ist, stellen wir ein deutlich sichtbares "OK"-Feld bereit,
-        # das den eigentlichen Fallstart einleitet. Durch die Verwendung von ``page_link`` wird direkt
-        # die nächste Seite (Anamnese) geöffnet, wodurch die Studierenden nahtlos in die Konsultation
-        # übergehen können.
-        fortsetzen_placeholder.page_link("pages/1_Anamnese.py", label="OK")
+        # das den eigentlichen Fallstart einleitet. Über ``st.switch_page`` springen wir direkt in die
+        # Anamnese-Seite, damit der Übergang für die Studierenden nahtlos erfolgt.
+        with fortsetzen_placeholder.container():
+            # Wir versehen den Bereich rund um den Start-Button mit einem individuellen CSS-Block,
+            # sodass das "OK"-Element deutlich hervorgehoben wird. Solange auf dieser Seite nur
+            # dieser Button verwendet wird, wirkt sich das Styling ausschließlich auf ihn aus.
+            # Das CSS wird bei jedem Rerun neu angefügt, was in Streamlit unproblematisch ist und
+            # sicherstellt, dass das Styling nach einem Reload zuverlässig greift.
+            st.markdown(
+                """
+                <style>
+                    /*
+                     * Die Klasse ``stButton`` kapselt den gerenderten Button. Über die direkte
+                     * Selektoransprache steuern wir gezielt das Aussehen des hier benötigten
+                     * Elements, ohne zusätzliche Bibliotheken zu laden. Falls weitere Buttons
+                     * hinzukommen, kann das Styling bei Bedarf durch eine spezifischere Klasse
+                     * ergänzt werden.
+                     */
+                    div[data-testid="stButton"] {
+                        margin-top: 1.5rem;
+                        display: flex;
+                        justify-content: center;
+                    }
+                    div[data-testid="stButton"] > button {
+                        background-color: #2e7d32;
+                        border: 2px solid #1b5e20;
+                        color: #ffffff;
+                        font-weight: 700;
+                        padding: 0.75rem 2.5rem;
+                        border-radius: 999px;
+                        box-shadow: 0 0 0 1px rgba(27, 94, 32, 0.35);
+                    }
+                    div[data-testid="stButton"] > button:hover {
+                        background-color: #1b5e20;
+                        border-color: #174f1b;
+                    }
+                    div[data-testid="stButton"] > button:focus {
+                        outline: 3px solid rgba(56, 142, 60, 0.45);
+                        outline-offset: 2px;
+                    }
+                </style>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            # Durch die Nutzung von ``st.button`` behalten wir die vertraute Streamlit-Interaktion
+            # bei und können den Button im Anschluss eindeutig verarbeiten. Sollte das Styling
+            # debuggt werden müssen, lässt sich der CSS-Block oben temporär auskommentieren.
+            button_gedrueckt = st.button("OK", key="start_ok_button", type="primary")
+
+            if button_gedrueckt:
+                # Der Seitenwechsel erfolgt über ``st.switch_page``. Dies stellt sicher, dass der
+                # Multipage-Mechanismus von Streamlit genutzt wird und die Session-States erhalten
+                # bleiben. Bei Bedarf kann hier für Debug-Zwecke eine zusätzliche ``st.write``-
+                # Ausgabe aktiviert werden, um den Seitenwechsel zu protokollieren.
+                st.switch_page("pages/1_Anamnese.py")
 
     st.stop()
 
