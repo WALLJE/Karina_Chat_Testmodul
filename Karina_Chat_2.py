@@ -634,7 +634,7 @@ if diagnose_eingegeben and therapie_eingegeben:
             ])
             
             #DEBUG
-            st.write("DEBUG: diagnostik_eingaben =", diagnostik_eingaben)
+            # st.write("DEBUG: diagnostik_eingaben =", diagnostik_eingaben)
           
             feedback = feedback_erzeugen(
                 client,
