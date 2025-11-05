@@ -9,6 +9,7 @@ import streamlit as st
 
 from module.feedback_ui import student_feedback
 from module.footer import copyright_footer
+from module.navigation import redirect_to_start_page
 from module.offline import display_offline_banner
 from module.sidebar import show_sidebar
 
@@ -23,11 +24,9 @@ def _pruefe_voraussetzungen() -> None:
     """Stellt sicher, dass das Feedback bereits erstellt wurde."""
 
     if not st.session_state.get("final_feedback", "").strip():
-        st.warning(
-            "⚠️ Bitte sieh dir zunächst das automatische Feedback an, bevor du die Evaluation startest."
+        redirect_to_start_page(
+            "⚠️ Bitte sieh dir zunächst das automatische Feedback an und folge der vorgesehenen Navigation von der Startseite."
         )
-        st.page_link("pages/6_Feedback.py", label="⬅ Zurück zum Feedback")
-        st.stop()
 
 
 def _zeige_downloadbereich() -> None:

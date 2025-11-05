@@ -7,6 +7,7 @@
 3. [Installation](#installation)
 4. [Starten der Anwendung](#starten-der-anwendung)
 5. [Grundlegende Nutzung](#grundlegende-nutzung)
+    1. [Automatisches Zurücksetzen bei Direktaufrufen](#automatisches-zurücksetzen-bei-direktaufrufen)
 6. [Admin-Modus](#admin-modus)
     1. [Anmeldung](#anmeldung)
     2. [Verwaltung von Fallbeispielen](#verwaltung-von-fallbeispielen)
@@ -58,6 +59,15 @@ Der Karina-Chat unterstützt medizinische Ausbildungsszenarien, indem realistisc
 - **Startseite als Einstieg:** `Karina_Chat_2.py` dient ausschließlich der Fallvorbereitung und führt nach Bestätigung der Instruktionen automatisch zur ersten Seite der Multipage-App.
 - **Interaktion:** Dialoge werden Schritt für Schritt geführt. Eingaben können über Textfelder oder vordefinierte Auswahlmöglichkeiten erfolgen.
 - **Speicherung:** Relevante Eingaben werden intern abgelegt, sodass ein Wechsel zwischen Modulen ohne Datenverlust möglich ist.
+
+### Automatisches Zurücksetzen bei Direktaufrufen
+- **Direkte Aufrufe werden abgefangen:** Wenn Nutzerinnen oder Nutzer versuchen, eine Unterseite ohne vorbereiteten Fall direkt
+  über die URL zu öffnen, leitet die Anwendung automatisch zur Startseite zurück.
+- **Hinweis auf der Startseite:** Die ausgelöste Unterseite hinterlegt einen Hinweistext im `st.session_state`. Beim nächsten
+  Laden zeigt die Startseite diesen Warnhinweis einmalig an und entfernt ihn anschließend wieder, damit keine veralteten Meldungen
+  sichtbar bleiben.
+- **Debugging-Tipp:** Für Fehlersuchen kann der Session-State über `st.write(st.session_state)` ausgegeben werden. Die Stelle ist
+  im Startskript kommentiert, sodass die zusätzliche Ausgabe bei Bedarf schnell aktiviert werden kann.
 
 ## Admin-Modus
 Der Admin-Modus ermöglicht es befugten Personen, Inhalte und Konfigurationen des Systems anzupassen. Im Folgenden werden die wichtigsten Funktionen erläutert.

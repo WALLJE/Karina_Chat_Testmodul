@@ -3,6 +3,7 @@ from openai import OpenAI, RateLimitError
 import os
 from datetime import datetime
 from module.sidebar import show_sidebar
+from module.navigation import redirect_to_start_page
 from module.footer import copyright_footer
 from module.offline import (
     display_offline_banner,
@@ -18,9 +19,7 @@ display_offline_banner()
 
 # Voraussetzungen prüfen
 if "SYSTEM_PROMPT" not in st.session_state or "patient_name" not in st.session_state:
-    st.warning("⚠️ Der Fall ist noch nicht geladen. Bitte beginne über die Startseite.")
-    st.page_link("Karina_Chat_2.py", label="⬅ Zur Startseite")
-    st.stop()
+    redirect_to_start_page("⚠️ Der Fall ist noch nicht geladen. Bitte beginne über die Startseite.")
 
 # OpenAI-Client initialisieren (nur wenn nicht bereits vorhanden)
 if "openai_client" not in st.session_state:

@@ -1,5 +1,6 @@
 import streamlit as st
 from module.sidebar import show_sidebar
+from module.navigation import redirect_to_start_page
 from module.footer import copyright_footer
 from diagnostikmodul import diagnostik_und_befunde_routine
 from befundmodul import generiere_befund
@@ -8,6 +9,14 @@ from module.loading_indicator import task_spinner
 
 show_sidebar()
 display_offline_banner()
+
+# Sollte jemand diese Seite ohne vorbereiteten Fall aufrufen, leiten wir automatisch
+# zurück zur Startseite. Dadurch bleibt der Ablauf konsistent und fehlende
+# Session-State-Einträge führen nicht mehr zu schwer nachvollziehbaren Fehlern.
+if "SYSTEM_PROMPT" not in st.session_state or "patient_name" not in st.session_state:
+    redirect_to_start_page(
+        "⚠️ Der Fall ist noch nicht geladen. Bitte beginne über die Startseite."
+    )
 
 st.session_state.setdefault("befund_generating", False)
 st.session_state.setdefault("befund_generierung_gescheitert", False)
