@@ -398,7 +398,7 @@ def fallauswahl_prompt(
     # Der Task-Spinner visualisiert transparent, welche Arbeitsschritte während
     # der Fallvorbereitung laufen. Das erleichtert sowohl Studierenden als auch
     # uns Entwickelnden das Verständnis, wo sich der Ladevorgang gerade befindet.
-    with task_spinner("🧠 Fallvorbereitung läuft...", ladeaufgaben) as indikator:
+    with task_spinner(" Fallvorbereitung läuft...", ladeaufgaben) as indikator:
         st.session_state.diagnose_szenario = fall.get("Szenario", "")
         st.session_state.diagnose_features = fall.get("Beschreibung", "")
         st.session_state.koerper_befund_tip = fall.get("Körperliche Untersuchung", "")
