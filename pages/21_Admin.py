@@ -1,3 +1,5 @@
+from datetime import timezone
+
 import streamlit as st
 
 from module.admin_data import FeedbackExportError, build_feedback_export
@@ -16,17 +18,17 @@ from module.fall_config import (
     AMBOSS_FETCH_ALWAYS,
     AMBOSS_FETCH_IF_EMPTY,
     AMBOSS_FETCH_RANDOM,
+    clear_feedback_mode_fix,
     clear_fixed_behavior,
     clear_fixed_scenario,
+    get_all_persisted_parameters,
     get_amboss_fetch_preferences,
     get_behavior_fix_state,
     get_fall_fix_state,
-    get_config_file_status,
     get_feedback_mode_fix_info,
     set_amboss_fetch_mode,
     set_amboss_random_probability,
     set_feedback_mode_fix,
-    clear_feedback_mode_fix,
     set_fixed_behavior,
     set_fixed_scenario,
 )
@@ -68,10 +70,9 @@ if not st.session_state.get("is_admin"):
 st.title("Adminbereich")
 
 # Der Statusüberblick ersetzt die Hinweise aus der Seitenleiste und bietet nun
-# zentral sichtbar an, ob AMBOSS korrekt angebunden ist und ob die
-# Konfigurationsdatei für Fixierungen verfügbar ist. Für Debugging kann der
-# Abschnitt bei Bedarf erweitert werden (z. B. durch Ausgabe zusätzlicher
-# Details).
+# zentral sichtbar an, ob AMBOSS korrekt angebunden ist. Die Supabase-Parameter
+# werden ergänzend weiter unten ausgegeben. Für Debugging kann der Abschnitt bei
+# Bedarf erweitert werden (z. B. durch Ausgabe zusätzlicher Details).
 st.subheader("Statusübersicht")
 
 amboss_status = get_amboss_configuration_status()
@@ -179,11 +180,25 @@ if raw_debug_data:
             # künftig andere Module den Debug-Eintrag erweitern.
             st.code(str(raw_debug_data), language="json")
 
-config_ok, config_message = get_config_file_status()
-if config_ok:
-    st.success(f"🗂️ Konfigurationsdatei: {config_message}")
+try:
+    persisted_overview = get_all_persisted_parameters()
+except RuntimeError as exc:
+    st.error(
+        "🗄️ Supabase-Persistenz: {hinweis}".format(hinweis=exc)
+    )
+    st.caption(
+        "Debug-Tipp: Prüfe die Supabase-Secrets in Streamlit und vergleiche sie mit den Kommentaren in 'module/fall_config.py'."
+    )
 else:
-    st.error(f"🗂️ Konfigurationsdatei-Hinweis: {config_message}")
+    with st.expander("🗄️ Aktuelle Supabase-Parameter einblenden"):
+        if not persisted_overview:
+            st.caption(
+                "Die Tabelle 'fall_persistenzen' enthält noch keine Einträge. Einstellungen werden automatisch angelegt, sobald sie im Adminbereich gespeichert werden."
+            )
+        else:
+            for fix_key, details in sorted(persisted_overview.items()):
+                st.markdown(f"**{fix_key}**")
+                st.json(details)
 
 st.subheader("Verbindungsmodus")
 current_offline = is_offline()
@@ -247,7 +262,7 @@ if selected_mode != current_override:
         if selected_mode == FEEDBACK_MODE_AMBOSS_CHATGPT:
             set_feedback_mode_fix(selected_mode)
             st.success(
-                "Übersteuerung aktiv: ChatGPT + AMBOSS wird verwendet und für zwei Stunden persistiert."
+                "Übersteuerung aktiv: ChatGPT + AMBOSS wird verwendet und bleibt solange aktiv, bis die Fixierung wieder aufgehoben wird."
             )
         else:
             clear_feedback_mode_fix()
@@ -259,12 +274,19 @@ if effective_mode:
 else:
     st.caption("Noch kein Feedback erzeugt – der Modus wird beim ersten Aufruf festgelegt.")
 
-persisted_active, persisted_value, remaining = get_feedback_mode_fix_info()
+persisted_active, persisted_value, persisted_timestamp = get_feedback_mode_fix_info()
 if persisted_active:
-    minutes = int(remaining.total_seconds() // 60)
-    st.caption(
-        f"Persistente Einstellung aktiv: **{persisted_value}** (läuft in ca. {minutes} Minuten ab)."
-    )
+    if persisted_timestamp:
+        timestamp_text = (
+            persisted_timestamp.astimezone(timezone.utc).strftime("%d.%m.%Y %H:%M UTC")
+        )
+        st.caption(
+            f"Persistente Einstellung aktiv: **{persisted_value}** (gesetzt am {timestamp_text})."
+        )
+    else:
+        st.caption(
+            f"Persistente Einstellung aktiv: **{persisted_value}** (Zeitpunkt konnte nicht ermittelt werden)."
+        )
 else:
     st.caption("Keine persistente ChatGPT+AMBOSS-Voreinstellung aktiv.")
 

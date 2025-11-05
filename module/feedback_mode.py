@@ -1,10 +1,9 @@
-"""Hilfsfunktionen zur Verwaltung des Feedback-Modus (ChatGPT vs. AMBOSS).
+"""Ausführlich kommentierte Steuerung des Feedback-Modus.
 
-Die Kommentare sind bewusst ausführlich, damit zukünftige Anpassungen leichter
-nachvollzogen werden können. Der Modus wird zentral bestimmt und in der
-``st.session_state``-Struktur abgelegt, sodass alle Komponenten denselben Wert
-verwenden. Standardmäßig erfolgt eine zufällige Auswahl zwischen reinem
-ChatGPT-Feedback und einer Variante, die zusätzlich AMBOSS-Inhalte einbezieht.
+Die Persistenz der Admin-Einstellungen erfolgt inzwischen über die Supabase-
+Tabelle ``fall_persistenzen``. Dadurch stehen Fixierungen sofort nach dem
+Anwendungsstart bereit und gelten solange, bis sie aktiv geändert oder gelöscht
+werden.
 """
 
 from __future__ import annotations
@@ -44,9 +43,9 @@ def determine_feedback_mode() -> str:
     Ablauf:
     1. Falls im Session State eine Admin-Übersteuerung hinterlegt ist, wird
        diese direkt übernommen.
-    2. Wenn keine Übersteuerung aktiv ist, prüfen wir eine optionale
-       Persistierung aus ``fall_config.json``. Sie wird genutzt, wenn der
-       kombinierte Modus administrativ für zwei Stunden festgelegt wurde.
+    2. Wenn keine Übersteuerung aktiv ist, prüfen wir die persistierte
+       Supabase-Konfiguration. Sie greift, wenn der kombinierte Modus
+       administrativ vorgegeben wurde.
     3. Ansonsten wird geprüft, ob bereits ein Modus für die aktuelle Sitzung
        gespeichert wurde. Wenn ja, wird er beibehalten.
     4. Liegt noch kein Modus vor, erfolgt eine zufällige Auswahl.
