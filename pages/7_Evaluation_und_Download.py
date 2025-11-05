@@ -7,6 +7,7 @@ herunterladen.
 
 import streamlit as st
 
+from module.fallverwaltung import reset_fall_session_state
 from module.feedback_ui import student_feedback
 from module.footer import copyright_footer
 from module.navigation import redirect_to_start_page
@@ -82,6 +83,40 @@ def _zeige_downloadbereich() -> None:
         st.info("💬 Der Download wird nach Abschluss der Evaluation freigeschaltet.")
 
 
+def _bereinige_session_state_fuer_neustart() -> None:
+    """Entfernt alle fallbezogenen Werte, damit ein neues Szenario sauber starten kann."""
+
+    # Wir verwenden den zentralen Reset-Helfer, um sämtliche fallrelevanten Werte aus dem
+    # Session-State zu löschen. So vermeiden wir veraltete Befunde oder Chatverläufe.
+    reset_fall_session_state()
+
+    # Zusätzlich entfernen wir Steuerflags der Startseite, damit die Instruktionen und
+    # Ladeindikatoren beim nächsten Besuch erneut angezeigt werden. Für Debugging kann
+    # hier bei Bedarf temporär ``st.write(st.session_state)`` aktiviert werden.
+    for schluessel in (
+        "fall_vorbereitung_abgeschlossen",
+        "instruktion_bestätigt",
+        "instruktion_loader_fertig",
+    ):
+        st.session_state.pop(schluessel, None)
+
+
+def _zeige_neustart_button() -> None:
+    """Stellt einen deutlich markierten Button bereit, um ein frisches Szenario zu starten."""
+
+    st.markdown("---")
+    if st.button("🔄 Neues Szenario starten", type="primary"):
+        # Zuerst wird der Session-State bereinigt, damit keine Datenreste den neuen Fall
+        # beeinflussen. Falls unerwartete Werte erhalten bleiben, kann oberhalb des Buttons
+        # kurzzeitig eine Debug-Ausgabe ergänzt werden.
+        _bereinige_session_state_fuer_neustart()
+
+        # Danach leiten wir direkt auf die Startseite zurück. Streamlit stellt sicher,
+        # dass der Multipage-Mechanismus korrekt greift und die Fallvorbereitung erneut
+        # ausgeführt wird.
+        st.switch_page("Karina_Chat_2.py")
+
+
 def main() -> None:
     """Steuert die Anzeige der Evaluation sowie den Downloadbereich."""
 
@@ -90,6 +125,7 @@ def main() -> None:
     student_feedback()
 
     _zeige_downloadbereich()
+    _zeige_neustart_button()
 
 
 if __name__ == "__main__":  # pragma: no cover - Streamlit startet die Seite selbst

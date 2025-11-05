@@ -60,6 +60,11 @@ Der Karina-Chat unterstützt medizinische Ausbildungsszenarien, indem realistisc
 - **Interaktion:** Dialoge werden Schritt für Schritt geführt. Eingaben können über Textfelder oder vordefinierte Auswahlmöglichkeiten erfolgen.
 - **Speicherung:** Relevante Eingaben werden intern abgelegt, sodass ein Wechsel zwischen Modulen ohne Datenverlust möglich ist.
 
+### Neustart nach der Evaluation
+- **Button „🔄 Neues Szenario starten“:** Nach Abschluss der Evaluation erscheint am unteren Seitenrand ein klar erkennbarer Button. Ein Klick darauf leert alle fallbezogenen Angaben (z. B. Chatverlauf, Befunde, diagnostische Entscheidungen) und setzt die Startinstruktionen zurück.
+- **Sauberer Neustart:** Direkt im Anschluss leitet die Anwendung automatisch mit `st.switch_page("Karina_Chat_2.py")` zur Startseite. Dort läuft die Fallvorbereitung erneut durch, damit keine Datenreste aus der vorherigen Sitzung sichtbar bleiben.
+- **Debugging-Hinweis:** Sollte der Reset ausnahmsweise nicht greifen, kann auf der Evaluationsseite kurzfristig `st.write(st.session_state)` aktiviert werden. So lassen sich verbleibende Schlüssel identifizieren und gezielt entfernen.
+
 ### Automatisches Zurücksetzen bei Direktaufrufen
 - **Direkte Aufrufe werden abgefangen:** Wenn Nutzerinnen oder Nutzer versuchen, eine Unterseite ohne vorbereiteten Fall direkt
   über die URL zu öffnen, leitet die Anwendung automatisch zur Startseite zurück.
