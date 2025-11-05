@@ -128,6 +128,14 @@ def fuehre_fall_vorbereitung_durch() -> None:
 show_sidebar()
 display_offline_banner()
 
+# Falls eine Unterseite aufgrund fehlender Vorbedingungen zurück auf die Startseite
+# umleitet, hinterlegt sie einen Hinweistext im Session State. Den Hinweis zeigen wir
+# hier einmalig an und entfernen ihn anschließend wieder, damit der Bildschirm sauber
+# bleibt, sobald die Nutzer:innen mit dem regulären Ablauf fortfahren.
+warnung = st.session_state.pop("start_warning", None)
+if warnung:
+    st.warning(warnung)
+
 # Ein prägnanter Titel erleichtert die Orientierung. Alle weiterführenden
 # Hinweise liefert der Instruktionsdialog.
 st.title("Virtuelle Sprechstunde")

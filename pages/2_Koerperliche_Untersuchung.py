@@ -2,6 +2,7 @@ import streamlit as st
 from datetime import datetime
 import streamlit.components.v1 as components
 from module.untersuchungsmodul import generiere_koerperbefund
+from module.navigation import redirect_to_start_page
 from openai import RateLimitError
 from module.sidebar import show_sidebar
 from module.footer import copyright_footer
@@ -22,9 +23,7 @@ if (
     "patient_job" not in st.session_state or
     "diagnose_features" not in st.session_state
 ):
-    st.warning("⚠️ Der Fall ist noch nicht geladen. Bitte beginne über die Startseite.")
-    st.page_link("Karina_Chat_2.py", label="⬅ Zur Startseite")
-    st.stop()
+    redirect_to_start_page("⚠️ Der Fall ist noch nicht geladen. Bitte beginne über die Startseite.")
 
 # Optional: Startzeit merken (z. B. für spätere Auswertung)
 if "start_untersuchung" not in st.session_state:

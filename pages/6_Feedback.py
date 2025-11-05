@@ -12,6 +12,7 @@ from feedbackmodul import feedback_erzeugen
 from module.footer import copyright_footer
 from module.gpt_feedback import speichere_gpt_feedback_in_supabase
 from module.loading_indicator import task_spinner
+from module.navigation import redirect_to_start_page
 from module.offline import display_offline_banner, is_offline
 from module.sidebar import show_sidebar
 
@@ -33,11 +34,9 @@ def _pruefe_voraussetzungen() -> None:
     """
 
     if "SYSTEM_PROMPT" not in st.session_state or "patient_name" not in st.session_state:
-        st.warning(
+        redirect_to_start_page(
             "⚠️ Der Fall ist noch nicht geladen. Bitte beginne über die Startseite."
         )
-        st.page_link("Karina_Chat_2.py", label="⬅ Zur Startseite")
-        st.stop()
 
 
 def _generiere_feedback() -> str:
