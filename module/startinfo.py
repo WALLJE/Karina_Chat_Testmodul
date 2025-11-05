@@ -99,7 +99,11 @@ Im Wartezimmer sitzen weitere {patient_forms.plural_phrase()} mit anderen Krankh
         st.session_state.instruktion_loader_fertig = True
 
     if st.session_state.instruktion_loader_fertig:
-        fortsetzen_placeholder.page_link("pages/1_Anamnese.py", label="✅ Verstanden")
+        # Sobald die Vorbereitung abgeschlossen ist, stellen wir ein deutlich sichtbares "OK"-Feld bereit,
+        # das den eigentlichen Fallstart einleitet. Durch die Verwendung von ``page_link`` wird direkt
+        # die nächste Seite (Anamnese) geöffnet, wodurch die Studierenden nahtlos in die Konsultation
+        # übergehen können.
+        fortsetzen_placeholder.page_link("pages/1_Anamnese.py", label="OK")
 
     st.stop()
 
