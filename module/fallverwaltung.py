@@ -305,7 +305,7 @@ def fallauswahl_prompt(
 
     ladeaufgaben = [
         "Übernehme zufällig ausgewähltes Fallszenario",
-        "Prüfe und sichere AMBOSS-Zusammenfassung",
+        "Prüfe und sichere Zusammenfassung",
         "Fasse Ergebnisse zusammen",
     ]
 
