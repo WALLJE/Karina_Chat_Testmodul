@@ -76,7 +76,7 @@ def ensure_amboss_summary(
         "und therapeutische Kernaussagen sowie auf die wichtigsten Differentialdiagnosen "
         "mit ihrer Abgrenzung zur Hauptdiagnose."
         "\n\n"
-        f"Fallkontext: Szenario = {diagnose_szenario}, Alter = {patient_age} Jahre."
+        f"Fallkontext Szenario = {diagnose_szenario}. Nur zur Information, nicht in Antwort übernehmen: Alter = {patient_age} Jahre."
         "\n\n"
         "Erstelle vier kurze Abschnitte mit fett formatierten Überschriften:"
         "\n1. Anamnese & Klinik"
