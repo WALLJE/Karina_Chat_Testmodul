@@ -119,6 +119,71 @@ def starte_automatische_befundgenerierung() -> None:
     if not st.session_state.get("befund_generierung_gescheitert", False):
         st.rerun()
 
+
+def generiere_koerperbefund_interaktiv(client: OpenAI) -> None:
+    """Erstellt den körperlichen Befund einheitlich für Autostart und Button-Klick."""
+
+    # Sofortiger Abbruch, falls bereits eine Generierung läuft – damit vermeiden wir doppelte API-Aufrufe.
+    if st.session_state.get("koerper_befund_generating", False):
+        return
+
+    st.session_state.koerper_befund_generating = True
+
+    # Alle notwendigen Eingaben werden zentral zusammengestellt, damit der eigentliche Generierungscode übersichtlich bleibt.
+    diagnose_szenario = st.session_state.get("diagnose_szenario", "")
+    diagnose_features = st.session_state.get("diagnose_features")
+    koerper_befund_tip = st.session_state.get("koerper_befund_tip")
+    patient_name = st.session_state.get("patient_name", "Der Patient / die Patientin")
+
+    try:
+        if is_offline():
+            # Offline greifen wir direkt auf die lokale Hilfsfunktion zu – ideal für Workshops ohne Internet.
+            koerper_befund = generiere_koerperbefund(
+                client,
+                diagnose_szenario,
+                diagnose_features,
+                koerper_befund_tip,
+            )
+            st.session_state.koerper_befund = koerper_befund
+            st.info(
+                "🔌 Offline-Befund geladen. Sobald der Online-Modus aktiv ist, kannst du einen KI-generierten Befund abrufen."
+            )
+        else:
+            untersuchungsaufgaben = [
+                "Sammle anamnestische Schlüsselhinweise",
+                "Berechne passende Untersuchungsbefunde",
+                "Bereite Ergebnistext für die Anzeige auf",
+            ]
+            # Der Spinner sorgt für nachvollziehbares Feedback – das stärkt das Vertrauen während der Verarbeitung.
+            with task_spinner(
+                f"{patient_name} wird untersucht...",
+                untersuchungsaufgaben,
+            ) as indikator:
+                indikator.advance(1)
+                koerper_befund = generiere_koerperbefund(
+                    client,
+                    diagnose_szenario,
+                    diagnose_features,
+                    koerper_befund_tip,
+                )
+                indikator.advance(1)
+                st.session_state.koerper_befund = koerper_befund
+                indikator.advance(1)
+
+        st.session_state.koerper_befund_generating = False
+
+        # Debug-Hinweis: Bei Bedarf st.write("Befund:", st.session_state.koerper_befund) aktivieren, um Antworten zu prüfen.
+        st.rerun()
+
+    except RateLimitError:
+        st.session_state.koerper_befund_generating = False
+        st.error("🚫 Die Untersuchung konnte nicht erstellt werden. Die OpenAI-API ist derzeit überlastet.")
+
+    except Exception as err:
+        st.session_state.koerper_befund_generating = False
+        st.error(f"❌ Unerwarteter Fehler bei der Untersuchung: {err}")
+        # Debug-Tipp: Mit st.exception(err) lassen sich ausführliche Tracebacks anzeigen, falls nötig.
+
 def speichere_gpt_feedback_in_supabase():
     """Leitet die Supabase-Speicherung an das neue Hilfsmodul weiter."""
 
@@ -325,50 +390,7 @@ if anzahl_fragen > 0:
         not st.session_state.get("koerper_befund")
         and not st.session_state.get("koerper_befund_generating", False)
     ):
-        st.session_state.koerper_befund_generating = True
-        try:
-            if is_offline():
-                koerper_befund = generiere_koerperbefund(
-                    client,
-                    st.session_state.diagnose_szenario,
-                    st.session_state.diagnose_features,
-                    st.session_state.koerper_befund_tip,
-                )
-                st.session_state.koerper_befund = koerper_befund
-            else:
-                untersuchungsaufgaben = [
-                    "Sammle anamnestische Schlüsselhinweise",
-                    "Berechne passende Untersuchungsbefunde",
-                    "Bereite Ergebnistext für die Anzeige auf",
-                ]
-                with task_spinner(
-                    f"{st.session_state.patient_name} wird untersucht...",
-                    untersuchungsaufgaben,
-                ) as indikator:
-                    indikator.advance(1)
-                    koerper_befund = generiere_koerperbefund(
-                        client,
-                        st.session_state.diagnose_szenario,
-                        st.session_state.diagnose_features,
-                        st.session_state.koerper_befund_tip,
-                    )
-                    indikator.advance(1)
-                    st.session_state.koerper_befund = koerper_befund
-                    indikator.advance(1)
-            st.session_state.koerper_befund_generating = False
-            if is_offline():
-                st.info(
-                    "🔌 Offline-Befund geladen. Sobald der Online-Modus aktiv ist, kannst du einen KI-generierten Befund abrufen."
-                )
-            st.rerun()
-        except RateLimitError:
-            st.session_state.koerper_befund_generating = False
-            st.error(
-                "🚫 Die Untersuchung konnte nicht erstellt werden. Die OpenAI-API ist derzeit überlastet."
-            )
-        except Exception as err:
-            st.session_state.koerper_befund_generating = False
-            st.error(f"❌ Unerwarteter Fehler bei der Untersuchung: {err}")
+        generiere_koerperbefund_interaktiv(client)
         # Debug-Hinweis: Bei Bedarf kann hier ein st.write(...) aktiviert werden, um Details zur Generierung anzuzeigen.
 
 #Debug
@@ -383,42 +405,8 @@ if anzahl_fragen > 0:
             "Untersuchung durchführen",
             disabled=st.session_state.get("koerper_befund_generating", False),
         ):
-            st.session_state.koerper_befund_generating = True
-            try:
-                if is_offline():
-                    koerper_befund = generiere_koerperbefund(
-                        client,
-                        st.session_state.diagnose_szenario,
-                        st.session_state.diagnose_features,
-                        st.session_state.koerper_befund_tip
-                    )
-                    st.session_state.koerper_befund = koerper_befund
-                else:
-                    untersuchungsaufgaben = [
-                        "Sammle anamnestische Schlüsselhinweise",
-                        "Berechne passende Untersuchungsbefunde",
-                        "Bereite Ergebnistext für die Anzeige auf",
-                    ]
-                    with task_spinner(
-                        f"{st.session_state.patient_name} wird untersucht...",
-                        untersuchungsaufgaben,
-                    ) as indikator:
-                        indikator.advance(1)
-                        koerper_befund = generiere_koerperbefund(
-                            client,
-                            st.session_state.diagnose_szenario,
-                            st.session_state.diagnose_features,
-                            st.session_state.koerper_befund_tip
-                        )
-                        indikator.advance(1)
-                        st.session_state.koerper_befund = koerper_befund
-                        indikator.advance(1)
-                st.session_state.koerper_befund_generating = False
-                st.rerun()
-            except RateLimitError:
-                st.session_state.koerper_befund_generating = False
-                st.error("🚫 Die Untersuchung konnte nicht erstellt werden. Die OpenAI-API ist derzeit überlastet.")
-           
+            generiere_koerperbefund_interaktiv(client)
+
 else:
     st.subheader("Körperliche Untersuchung")
     st.button("Untersuchung durchführen", disabled=True)
