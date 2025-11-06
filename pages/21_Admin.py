@@ -533,14 +533,27 @@ else:
         erforderliche_spalten = [
             "Szenario",
             "Beschreibung",
-            "Körperliche Untersuchung",
             "Alter",
             "Geschlecht",
         ]
 
         vorhandene_spalten = list(fall_df.columns) if not fall_df.empty else []
+
+        # Die körperliche Untersuchung wird bewusst nicht mehr als Pflichtfeld geführt.
+        # Administrator*innen können dadurch neue Fälle mit unvollständigen Angaben
+        # speichern und die Untersuchung bei Bedarf nachpflegen. Damit das Feld in der
+        # Oberfläche dennoch sichtbar bleibt, ergänzen wir es – falls nötig – manuell.
+        if "Körperliche Untersuchung" not in vorhandene_spalten:
+            vorhandene_spalten.append("Körperliche Untersuchung")
         optionale_spalten = [
             spalte for spalte in vorhandene_spalten if spalte not in erforderliche_spalten
+        ]
+
+        # Die Primärschlüsselspalte ``id`` darf bei Neueinträgen nicht bearbeitet werden,
+        # weil Supabase diesen Wert automatisch vergibt. Ein leeres Feld würde sonst als
+        # ``NULL`` übertragen und den hier beobachteten Fehler auslösen.
+        optionale_spalten = [
+            spalte for spalte in optionale_spalten if spalte.lower() != "id"
         ]
 
         for spalte in erforderliche_spalten:
@@ -555,16 +568,21 @@ else:
         with st.form("admin_neues_fallbeispiel"):
             formularwerte: dict[str, str] = {}
 
+            textbereiche = {"Beschreibung", "Körperliche Untersuchung"}
+
             for spalte in erforderliche_spalten:
                 widget_key = f"admin_neuer_fall_{spalte}"
-                if spalte in {"Beschreibung", "Körperliche Untersuchung"}:
+                if spalte in textbereiche:
                     formularwerte[spalte] = st.text_area(spalte, key=widget_key)
                 else:
                     formularwerte[spalte] = st.text_input(spalte, key=widget_key)
 
             for spalte in optionale_spalten:
                 widget_key = f"admin_neuer_fall_{spalte}"
-                formularwerte[spalte] = st.text_input(spalte, key=widget_key)
+                if spalte in textbereiche:
+                    formularwerte[spalte] = st.text_area(spalte, key=widget_key)
+                else:
+                    formularwerte[spalte] = st.text_input(spalte, key=widget_key)
 
             abgesendet = st.form_submit_button("Fallbeispiel speichern", type="primary")
 
