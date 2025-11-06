@@ -516,6 +516,28 @@ else:
     st.subheader("Neues Fallbeispiel")
 
     formular_state_key = "admin_fallformular_offen"
+    reset_flag_key = "admin_fallformular_reset_noetig"
+    rueckmeldung_key = "admin_fallformular_rueckmeldung"
+
+    if st.session_state.pop(reset_flag_key, False):
+        # Damit Streamlit nicht versucht, bereits erzeugte Widgets mit denselben
+        # Session-State-Schlüsseln weiter zu betreiben, entfernen wir die Werte
+        # komplett aus ``st.session_state``. Dieser Schritt findet bewusst vor
+        # der erneuten Formularerstellung statt, sodass keine Streamlit-Ausnahme
+        # ausgelöst wird. Für Debugging lässt sich der Block temporär deaktivieren,
+        # um den Formularzustand zu inspizieren.
+        zu_loeschende_keys = [
+            key for key in st.session_state.keys() if key.startswith("admin_neuer_fall_")
+        ]
+        for key in zu_loeschende_keys:
+            st.session_state.pop(key, None)
+
+    if rueckmeldung_key in st.session_state:
+        # Nach erfolgreichem Speichern zeigen wir die Statusmeldung genau einmal an
+        # und löschen sie anschließend wieder, damit sie beim nächsten Aufruf nicht
+        # erneut erscheint.
+        st.success(st.session_state.pop(rueckmeldung_key))
+
     if formular_state_key not in st.session_state:
         st.session_state[formular_state_key] = False
 
@@ -525,9 +547,7 @@ else:
     if st.session_state.get(formular_state_key):
         if st.button("Abbrechen", type="secondary"):
             st.session_state[formular_state_key] = False
-            for key in list(st.session_state.keys()):
-                if key.startswith("admin_neuer_fall_"):
-                    st.session_state[key] = ""
+            st.session_state[reset_flag_key] = True
             st.rerun()
 
         erforderliche_spalten = [
@@ -629,11 +649,12 @@ else:
                     st.error("Speichern fehlgeschlagen: Unerwarteter Fehler.")
                 else:
                     fall_df = aktualisiert
-                    st.success("Fallbeispiel wurde erfolgreich gespeichert.")
+                    st.session_state[rueckmeldung_key] = (
+                        "Fallbeispiel wurde erfolgreich gespeichert."
+                    )
                     st.session_state[formular_state_key] = False
-                    for key in list(st.session_state.keys()):
-                        if key.startswith("admin_neuer_fall_"):
-                            st.session_state[key] = ""
+                    st.session_state[reset_flag_key] = True
+                    st.rerun()
 
 st.subheader("Feedback-Export")
 
