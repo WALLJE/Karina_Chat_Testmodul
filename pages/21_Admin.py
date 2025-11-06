@@ -516,6 +516,28 @@ else:
     st.subheader("Neues Fallbeispiel")
 
     formular_state_key = "admin_fallformular_offen"
+    reset_flag_key = "admin_fallformular_reset_noetig"
+    rueckmeldung_key = "admin_fallformular_rueckmeldung"
+
+    if st.session_state.pop(reset_flag_key, False):
+        # Damit Streamlit nicht versucht, bereits erzeugte Widgets mit denselben
+        # Session-State-Schlüsseln weiter zu betreiben, entfernen wir die Werte
+        # komplett aus ``st.session_state``. Dieser Schritt findet bewusst vor
+        # der erneuten Formularerstellung statt, sodass keine Streamlit-Ausnahme
+        # ausgelöst wird. Für Debugging lässt sich der Block temporär deaktivieren,
+        # um den Formularzustand zu inspizieren.
+        zu_loeschende_keys = [
+            key for key in st.session_state.keys() if key.startswith("admin_neuer_fall_")
+        ]
+        for key in zu_loeschende_keys:
+            st.session_state.pop(key, None)
+
+    if rueckmeldung_key in st.session_state:
+        # Nach erfolgreichem Speichern zeigen wir die Statusmeldung genau einmal an
+        # und löschen sie anschließend wieder, damit sie beim nächsten Aufruf nicht
+        # erneut erscheint.
+        st.success(st.session_state.pop(rueckmeldung_key))
+
     if formular_state_key not in st.session_state:
         st.session_state[formular_state_key] = False
 
@@ -525,22 +547,42 @@ else:
     if st.session_state.get(formular_state_key):
         if st.button("Abbrechen", type="secondary"):
             st.session_state[formular_state_key] = False
-            for key in list(st.session_state.keys()):
-                if key.startswith("admin_neuer_fall_"):
-                    st.session_state[key] = ""
+            st.session_state[reset_flag_key] = True
             st.rerun()
 
         erforderliche_spalten = [
             "Szenario",
             "Beschreibung",
-            "Körperliche Untersuchung",
             "Alter",
             "Geschlecht",
         ]
 
         vorhandene_spalten = list(fall_df.columns) if not fall_df.empty else []
+
+        # Die körperliche Untersuchung wird bewusst nicht mehr als Pflichtfeld geführt.
+        # Administrator*innen können dadurch neue Fälle mit unvollständigen Angaben
+        # speichern und die Untersuchung bei Bedarf nachpflegen. Damit das Feld in der
+        # Oberfläche dennoch sichtbar bleibt, ergänzen wir es – falls nötig – manuell.
+        if "Körperliche Untersuchung" not in vorhandene_spalten:
+            vorhandene_spalten.append("Körperliche Untersuchung")
         optionale_spalten = [
             spalte for spalte in vorhandene_spalten if spalte not in erforderliche_spalten
+        ]
+
+        # Die Primärschlüsselspalte ``id`` darf bei Neueinträgen nicht bearbeitet werden,
+        # weil Supabase diesen Wert automatisch vergibt. Gleiches gilt für die
+        # Zeitstempelspalten ``created_at`` und ``updated_at``: Sie werden durch
+        # Datenbank-Trigger gesetzt und dürfen daher nicht als leere Werte übertragen,
+        # sonst landen ``NULL``-Einträge im Insert-Payload und Supabase lehnt das
+        # Speichern ab. Wir nehmen diese Felder deshalb vollständig aus dem Formular
+        # heraus. Für weiterführendes Debugging kann bei Bedarf manuell ein separates
+        # Eingabefeld ergänzt werden, indem das Set ``geschuetzte_spalten`` angepasst
+        # wird.
+        geschuetzte_spalten = {"id", "created_at", "updated_at"}
+        optionale_spalten = [
+            spalte
+            for spalte in optionale_spalten
+            if spalte.lower() not in geschuetzte_spalten
         ]
 
         for spalte in erforderliche_spalten:
@@ -555,16 +597,21 @@ else:
         with st.form("admin_neues_fallbeispiel"):
             formularwerte: dict[str, str] = {}
 
+            textbereiche = {"Beschreibung", "Körperliche Untersuchung"}
+
             for spalte in erforderliche_spalten:
                 widget_key = f"admin_neuer_fall_{spalte}"
-                if spalte in {"Beschreibung", "Körperliche Untersuchung"}:
+                if spalte in textbereiche:
                     formularwerte[spalte] = st.text_area(spalte, key=widget_key)
                 else:
                     formularwerte[spalte] = st.text_input(spalte, key=widget_key)
 
             for spalte in optionale_spalten:
                 widget_key = f"admin_neuer_fall_{spalte}"
-                formularwerte[spalte] = st.text_input(spalte, key=widget_key)
+                if spalte in textbereiche:
+                    formularwerte[spalte] = st.text_area(spalte, key=widget_key)
+                else:
+                    formularwerte[spalte] = st.text_input(spalte, key=widget_key)
 
             abgesendet = st.form_submit_button("Fallbeispiel speichern", type="primary")
 
@@ -602,11 +649,12 @@ else:
                     st.error("Speichern fehlgeschlagen: Unerwarteter Fehler.")
                 else:
                     fall_df = aktualisiert
-                    st.success("Fallbeispiel wurde erfolgreich gespeichert.")
+                    st.session_state[rueckmeldung_key] = (
+                        "Fallbeispiel wurde erfolgreich gespeichert."
+                    )
                     st.session_state[formular_state_key] = False
-                    for key in list(st.session_state.keys()):
-                        if key.startswith("admin_neuer_fall_"):
-                            st.session_state[key] = ""
+                    st.session_state[reset_flag_key] = True
+                    st.rerun()
 
 st.subheader("Feedback-Export")
 
