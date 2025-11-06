@@ -172,9 +172,16 @@ if (
                     st.error(f"❌ Manueller Fallback fehlgeschlagen: {error}")
                     # Hinweis: Zusätzliche Debug-Ausgaben können hier bei Bedarf ergänzt werden.
 else:
-    st.subheader("📄 Befunde")
-    st.button("🧪 Befunde generieren lassen", disabled=True)
-    st.info("❗Bitte fordern Sie zunächst Untersuchungen an.")
+    # Hinweis für Entwickler*innen: In dieser Verzweigung liegen noch keine Diagnostik-
+    # Eingaben vor. Früher haben wir hier die Überschrift "Befunde" sowie einen
+    # deaktivierten Button und einen erklärenden Hinweis ausgegeben. Dieses Layout hat bei
+    # Nutzer*innen den Eindruck erweckt, dass ein Bedienfehler vorliegt. Um eine klare und
+    # reduzierte Oberfläche zu gewährleisten, lassen wir den Bereich nun bewusst leer.
+    # Für Debugging-Zwecke können die alten Elemente über die auskommentierten Zeilen
+    # reaktiviert werden.
+    # st.subheader("📄 Befunde")
+    # st.button("🧪 Befunde generieren lassen", disabled=True)
+    # st.info("❗Bitte fordern Sie zunächst Untersuchungen an.")
 
 # Weitere Diagnostik-Termine
 if not st.session_state.get("final_diagnose", "").strip():
