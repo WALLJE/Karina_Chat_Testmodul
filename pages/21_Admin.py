@@ -550,10 +550,19 @@ else:
         ]
 
         # Die Primärschlüsselspalte ``id`` darf bei Neueinträgen nicht bearbeitet werden,
-        # weil Supabase diesen Wert automatisch vergibt. Ein leeres Feld würde sonst als
-        # ``NULL`` übertragen und den hier beobachteten Fehler auslösen.
+        # weil Supabase diesen Wert automatisch vergibt. Gleiches gilt für die
+        # Zeitstempelspalten ``created_at`` und ``updated_at``: Sie werden durch
+        # Datenbank-Trigger gesetzt und dürfen daher nicht als leere Werte übertragen,
+        # sonst landen ``NULL``-Einträge im Insert-Payload und Supabase lehnt das
+        # Speichern ab. Wir nehmen diese Felder deshalb vollständig aus dem Formular
+        # heraus. Für weiterführendes Debugging kann bei Bedarf manuell ein separates
+        # Eingabefeld ergänzt werden, indem das Set ``geschuetzte_spalten`` angepasst
+        # wird.
+        geschuetzte_spalten = {"id", "created_at", "updated_at"}
         optionale_spalten = [
-            spalte for spalte in optionale_spalten if spalte.lower() != "id"
+            spalte
+            for spalte in optionale_spalten
+            if spalte.lower() not in geschuetzte_spalten
         ]
 
         for spalte in erforderliche_spalten:
