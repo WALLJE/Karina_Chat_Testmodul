@@ -30,6 +30,20 @@ def aktualisiere_diagnostik_zusammenfassung(start_runde=2):
         if bef:
             gpt_befunde += f"\n---\n### Termin {i}\n{bef}\n"
 
+    # Der unveränderte Text dient als Basis für spätere Kombinationen mit
+    # gesondert angeforderten Untersuchungen und kann bei Bedarf separat
+    # exportiert werden.
+    basistext = diagnostik_eingaben.strip()
+    st.session_state["diagnostik_eingaben_basis"] = basistext
+
+    sonder_text = st.session_state.get("sonderdiagnostik_text", "").strip()
+    if sonder_text and basistext:
+        diagnostik_eingaben = f"{sonder_text}\n\n{basistext}"
+    elif sonder_text:
+        diagnostik_eingaben = sonder_text
+    else:
+        diagnostik_eingaben = basistext
+
     st.session_state["diagnostik_eingaben_kumuliert"] = diagnostik_eingaben.strip()
     st.session_state["gpt_befunde_kumuliert"] = gpt_befunde.strip()
 
