@@ -117,6 +117,8 @@ end;
 $$ language plpgsql;
 ```
 - **Bearbeitung:** Neue Fälle werden im Admin-Formular erfasst und landen unmittelbar in Supabase. Über denselben Weg lassen sich bestehende Szenarien aktualisieren oder löschen (z. B. via Supabase-Konsole).
+- **Formularhinweise:** Im Abschnitt „Neues Fallbeispiel“ sind die Felder **Szenario/Name**, **Beschreibung**, **Geschlecht** und **Alter** als obligatorisch gekennzeichnet. Für das Feld **Geschlecht** erklärt ein Tooltip die Kodierung (`m`, `w`, `d`, `n`).
+- **Optionale Angaben:** Alle übrigen Felder sind freiwillig. Bleiben sie leer, werden sie automatisch so vorbereitet, dass Supabase-Constraints (z. B. NOT NULL bei der körperlichen Untersuchung) eingehalten werden.
 - **AMBOSS-Input verwalten:** Die Spalte `amboss_input` speichert je Szenario die komprimierte AMBOSS-Zusammenfassung. Der Adminbereich erlaubt, zwischen dauerhaftem MCP-Abruf, Abruf nur bei leeren Feldern oder einem zufälligen Refresh (mit einstellbarer Wahrscheinlichkeit) zu wechseln.
 - **Statuskontrolle:** Während der Fallvorbereitung zeigt der Spinner explizit an, dass der AMBOSS-Text geprüft und bei Bedarf gespeichert wird. Im Adminbereich erscheint anschließend eine Statusmeldung, ob das Supabase-Feld aktualisiert wurde oder aus welchen Gründen der Schritt übersprungen wurde (z. B. Zufallsmodus, Override, Fehler).
 - **Persistente Admin-Einstellungen:** Fixierungen für Szenario, Verhalten sowie der bevorzugte AMBOSS-Abrufmodus werden dauerhaft in der Supabase-Tabelle `fall_persistenzen` gespeichert. Der Adminbereich stellt die jeweils aktiven Werte in einem ausklappbaren Abschnitt dar.
