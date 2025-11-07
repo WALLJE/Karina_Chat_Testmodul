@@ -48,6 +48,17 @@ _DF_TO_SUPABASE: dict[str, str] = {
     df_name: sb_name for sb_name, df_name in _SUPABASE_TO_DF.items() if df_name
 }
 
+# Die Supabase-Tabelle erzwingt für einzelne Spalten einen NOT-NULL-Constraint, obwohl
+# das Adminformular sie als optionale Freitextfelder behandelt. Damit beim Speichern
+# dennoch keine Datenbankfehler auftreten, definieren wir hier jene Spalten, für die
+# ein leerer Text ("") statt ``NULL`` übertragen werden muss. So bleibt die
+# Oberfläche flexibel und gleichzeitig schema-konform. Für Debugging kann die Menge
+# bei Bedarf um weitere Supabase-Spaltennamen ergänzt werden; die zugehörigen
+# DataFrame-Spalten finden sich in ``_SUPABASE_TO_DF``.
+_SUPABASE_STRING_NOT_NULL_OPTIONAL: set[str] = {
+    "koerperliche_untersuchung",
+}
+
 _FALL_SESSION_KEYS: set[str] = {
     "diagnose_szenario",
     "diagnose_features",
@@ -321,7 +332,14 @@ def speichere_fallbeispiel(
         if isinstance(wert, str):
             wert = wert.strip()
             if not wert:
-                wert = None
+                if supabase_spalte in _SUPABASE_STRING_NOT_NULL_OPTIONAL:
+                    # Debug-Hinweis: Dieser Zweig sorgt dafür, dass Supabase-Felder mit NOT-NULL-Vorgabe
+                    # trotz leerer Formulareingabe gespeichert werden können. Wer testen möchte, wie sich
+                    # ``NULL``-Werte verhalten, kann temporär den Spaltennamen aus
+                    # ``_SUPABASE_STRING_NOT_NULL_OPTIONAL`` entfernen.
+                    wert = ""
+                else:
+                    wert = None
         if df_spalte == "Alter" and wert is not None:
             try:
                 wert = int(wert)
