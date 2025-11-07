@@ -28,10 +28,14 @@ def get_offline_patient_reply(patient_name: str) -> str:
 
 def get_offline_koerperbefund() -> str:
     """Return a generic but plausible examination report for offline usage."""
+    # Hinweis: In der Offline-Variante legen wir beispielhafte Vitalparameter fest,
+    # damit der strukturierte Aufbau identisch zum Online-Befund bleibt.
     return (
         "Offline-Modus – standardisierter Befund"
         "\n\n"
-        "**Allgemeinzustand:** wach, orientiert, kooperativ; Vitalparameter im Normbereich."
+        "Blutdruck: 118/74 mmHg"
+        "\nHerzfrequenz: 72/Minute"
+        "\n\n**Allgemeinzustand:** wach, orientiert, kooperativ; Vitalparameter im Normbereich."
         "\n**Abdomen:** weich, kein Druckschmerz, Darmgeräusche regelrecht."
         "\n**Auskultation Herz/Lunge:** Herztöne rein, rhythmisch; Vesikuläratmen beidseits ohne Nebengeräusche."
         "\n**Haut:** rosig, warm, keine Auffälligkeiten."
@@ -50,6 +54,19 @@ def get_offline_befund(neue_diagnostik: str) -> str:
         "- Laborwerte im Referenzbereich, keine pathologischen Abweichungen.\n"
         "- Bildgebung ohne richtungsweisende Befunde.\n"
         "- Funktionsdiagnostik unauffällig."
+    )
+
+
+def get_offline_sonderuntersuchung(wunsch_text: str) -> str:
+    """Build a static supplement for additional examination wishes while offline."""
+    # Diese Ausgabe dient als klar gekennzeichneter Platzhalter. Für Debugging kann
+    # bei Bedarf ein detaillierterer Text gewählt werden.
+    wunsch = wunsch_text.strip() or "(kein Wunschtext eingegeben)"
+    return (
+        "Offline-Modus – ergänzter Untersuchungsblock"
+        "\n\n"
+        f"Anforderung: {wunsch}"
+        "\nErgebnis: Zurzeit stehen keine dynamischen Detailbefunde zur Verfügung."
     )
 
 
