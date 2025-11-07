@@ -78,7 +78,7 @@ Bereits vorliegender Untersuchungsbefund:
 {bestehender_befund}
 
 Die folgende zusätzliche körperliche Untersuchung wurde explizit angefordert:
-"""{sonderwunsch}"""
+{sonderwunsch}
 
 Formuliere einen prägnanten Ergebnisblock mit maximal 3 Sätzen. Verwende das Format:
 **Gesondert angeforderte Untersuchung:** <Kurzbezeichnung der Untersuchung>
