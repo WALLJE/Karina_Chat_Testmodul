@@ -59,6 +59,8 @@ Der Karina-Chat unterstützt medizinische Ausbildungsszenarien, indem realistisc
 - **Startseite als Einstieg:** `Karina_Chat_2.py` dient ausschließlich der Fallvorbereitung und führt nach Bestätigung der Instruktionen automatisch zur ersten Seite der Multipage-App.
 - **Interaktion:** Dialoge werden Schritt für Schritt geführt. Eingaben können über Textfelder oder vordefinierte Auswahlmöglichkeiten erfolgen.
 - **Speicherung:** Relevante Eingaben werden intern abgelegt, sodass ein Wechsel zwischen Modulen ohne Datenverlust möglich ist.
+- **Körperliche Untersuchung:** Der automatisch generierte Befund führt immer mit den Vitalparametern Blutdruck (mmHg) und Herzfrequenz (/Minute) ein, damit Lernende sofort einen vollständigen Überblick erhalten.
+- **Zusätzliche Untersuchungen:** Nach dem Erstbefund kann im Abschnitt „➕ Gesonderte Untersuchungen anfordern“ eine frei formulierte Wunschuntersuchung eingetragen werden. Die KI ergänzt den Befundblock und markiert ihn für spätere Auswertungen in Supabase.
 
 ### Neustart nach der Evaluation
 - **Button „🔄 Neues Szenario starten“:** Nach Abschluss der Evaluation erscheint am unteren Seitenrand ein klar erkennbarer Button. Ein Klick darauf leert alle fallbezogenen Angaben (z. B. Chatverlauf, Befunde, diagnostische Entscheidungen) und setzt die Startinstruktionen zurück.
