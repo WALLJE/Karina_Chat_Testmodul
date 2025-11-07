@@ -19,6 +19,17 @@ display_offline_banner()
 st.session_state.setdefault("koerper_befund_generating", False)
 st.session_state.setdefault("sonder_untersuchung_generating", False)
 
+# Die Eingabe für Sonderuntersuchungen erhält einen definierten Ausgangswert.
+# So bleibt das Textfeld auch beim ersten Laden der Seite konsistent befüllt
+# (hier: bewusst leer) und wir vermeiden Fehlermeldungen durch späte Zuweisungen.
+st.session_state.setdefault("sonderuntersuchung_input", "")
+
+# Falls ein vorheriger Durchlauf das Textfeld gezielt leeren wollte, wird dies
+# hier umgesetzt. Die Pop-Operation erfolgt vor der Widget-Instanziierung,
+# damit Streamlit keine Mutation eines bereits existierenden Widgets meldet.
+if st.session_state.pop("sonderuntersuchung_input_leeren", False):
+    st.session_state["sonderuntersuchung_input"] = ""
+
 
 def aktualisiere_befundanzeige() -> None:
     """Bereitet den Basisbefund plus alle Zusatzblöcke für die Anzeige auf."""
@@ -105,13 +116,8 @@ if "koerper_befund" in st.session_state:
     st.markdown(st.session_state.koerper_befund)
 
     st.markdown("---")
-    st.subheader("➕ Gesonderte Untersuchungen anfordern")
-    st.write(
-        "Nutze das folgende Feld, um weiterführende körperliche Untersuchungen zu spezifizieren. "
-        "Die Antworten werden direkt unter dem Ausgangsbefund ergänzt und in der Evaluation markiert."
-    )
     sonder_input = st.text_area(
-        "Welche spezielle Untersuchung möchtest du durchführen lassen?",
+        "➕ Option: weitere körperliche Untersuchungen durchführen - bitte spezifizieren:",
         key="sonderuntersuchung_input",
     )
 
@@ -163,7 +169,10 @@ if "koerper_befund" in st.session_state:
                 aktualisiere_befundanzeige()
                 aktualisiere_sonderdiagnostik_prefix()
                 st.session_state["sonder_untersuchung_generating"] = False
-                st.session_state["sonderuntersuchung_input"] = ""
+                # Anstatt das Textfeld direkt zu überschreiben, setzen wir eine
+                # Zielmarke für den nächsten Durchlauf. Beim erneuten Rendern
+                # wird das Feld vor der Widget-Erstellung geleert.
+                st.session_state["sonderuntersuchung_input_leeren"] = True
                 st.success("Die gesonderte Untersuchung wurde ergänzt.")
                 st.rerun()
             except RateLimitError:
