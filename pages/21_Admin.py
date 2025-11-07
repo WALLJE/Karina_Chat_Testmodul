@@ -550,12 +550,59 @@ else:
             st.session_state[reset_flag_key] = True
             st.rerun()
 
+        # Die folgenden Felder sind für das Speichern eines neuen Falls zwingend nötig.
+        # Die Nutzer*innen sollen sofort erkennen, welche Angaben obligatorisch sind –
+        # insbesondere das "Szenario", das im Alltag als Name des Falls verstanden wird.
         erforderliche_spalten = [
             "Szenario",
             "Beschreibung",
             "Alter",
             "Geschlecht",
         ]
+
+        # Für die Formularbeschriftung nutzen wir erklärende Zusatztexte, damit klar ist,
+        # ob Angaben Pflicht oder freiwillig sind. Ergänzend hinterlegen wir passende
+        # Tooltip-Hinweise, die bei Mouse-Over erscheinen.
+        def _erstelle_label(spaltenname: str, ist_pflichtfeld: bool) -> str:
+            """Erzeugt eine verständliche Feldbeschriftung mit Pflicht-Hinweis."""
+
+            if ist_pflichtfeld:
+                if spaltenname == "Szenario":
+                    return "Szenario (Pflichtfeld – entspricht dem Fallnamen)"
+                return f"{spaltenname} (Pflichtfeld)"
+            return f"{spaltenname} (optional)"
+
+        def _erstelle_helptext(spaltenname: str, ist_pflichtfeld: bool) -> str:
+            """Liefert erläuternde Tooltip-Texte für das Admin-Formular."""
+
+            if ist_pflichtfeld:
+                if spaltenname == "Geschlecht":
+                    return (
+                        "Pflichtfeld: Bitte Kodierung verwenden – m = männlich, w = weiblich, "
+                        "d = divers, n = keine Angabe."
+                    )
+                if spaltenname == "Alter":
+                    return (
+                        "Pflichtfeld: Alter in Jahren angeben. Es werden ausschließlich ganze Zahlen gespeichert."
+                    )
+                if spaltenname == "Beschreibung":
+                    return (
+                        "Pflichtfeld: Kurzbeschreibung des Falls. Dieser Text erscheint in der Übersicht."
+                    )
+                return "Pflichtfeld: Ohne diese Angabe kann der Fall nicht gespeichert werden."
+            if spaltenname == "Körperliche Untersuchung":
+                return (
+                    "Optional: Detailbeschreibung der körperlichen Untersuchung. Kann später ergänzt werden."
+                )
+            if spaltenname == "Besonderheit":
+                return (
+                    "Optional: Zusätzliche Besonderheiten oder Kontextinformationen zum Fall."
+                )
+            if spaltenname == "Amboss_Input":
+                return (
+                    "Optional: Vorgefertigter AMBOSS-Input. Wenn leer, kann der Text später automatisch generiert werden."
+                )
+            return "Optional: Dieses Feld kann leer bleiben."
 
         vorhandene_spalten = list(fall_df.columns) if not fall_df.empty else []
 
@@ -601,17 +648,37 @@ else:
 
             for spalte in erforderliche_spalten:
                 widget_key = f"admin_neuer_fall_{spalte}"
+                label = _erstelle_label(spalte, True)
+                hilfetext = _erstelle_helptext(spalte, True)
                 if spalte in textbereiche:
-                    formularwerte[spalte] = st.text_area(spalte, key=widget_key)
+                    formularwerte[spalte] = st.text_area(
+                        label,
+                        key=widget_key,
+                        help=hilfetext,
+                    )
                 else:
-                    formularwerte[spalte] = st.text_input(spalte, key=widget_key)
+                    formularwerte[spalte] = st.text_input(
+                        label,
+                        key=widget_key,
+                        help=hilfetext,
+                    )
 
             for spalte in optionale_spalten:
                 widget_key = f"admin_neuer_fall_{spalte}"
+                label = _erstelle_label(spalte, False)
+                hilfetext = _erstelle_helptext(spalte, False)
                 if spalte in textbereiche:
-                    formularwerte[spalte] = st.text_area(spalte, key=widget_key)
+                    formularwerte[spalte] = st.text_area(
+                        label,
+                        key=widget_key,
+                        help=hilfetext,
+                    )
                 else:
-                    formularwerte[spalte] = st.text_input(spalte, key=widget_key)
+                    formularwerte[spalte] = st.text_input(
+                        label,
+                        key=widget_key,
+                        help=hilfetext,
+                    )
 
             abgesendet = st.form_submit_button("Fallbeispiel speichern", type="primary")
 
@@ -627,8 +694,12 @@ else:
                     neuer_fall[spalte] = str(wert).strip()
 
             for spalte in optionale_spalten:
-                optional_wert = str(formularwerte.get(spalte, "")).strip()
-                neuer_fall[spalte] = optional_wert if optional_wert else None
+                # Optionale Felder bleiben bewusst Strings. ``speichere_fallbeispiel``
+                # entscheidet anschließend, ob daraus ein leerer Text oder ``NULL``
+                # wird. So lassen sich NOT-NULL-Vorgaben einhalten, ohne dass hier
+                # Spezialfälle gepflegt werden müssen.
+                optional_wert = str(formularwerte.get(spalte, "") or "").strip()
+                neuer_fall[spalte] = optional_wert
 
             alter_wert = str(neuer_fall.get("Alter", "")).strip()
             if alter_wert:
