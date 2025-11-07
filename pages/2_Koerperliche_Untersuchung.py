@@ -116,13 +116,8 @@ if "koerper_befund" in st.session_state:
     st.markdown(st.session_state.koerper_befund)
 
     st.markdown("---")
-    st.subheader("➕ Gesonderte Untersuchungen anfordern")
-    st.write(
-        "Nutze das folgende Feld, um weiterführende körperliche Untersuchungen zu spezifizieren. "
-        "Die Antworten werden direkt unter dem Ausgangsbefund ergänzt und in der Evaluation markiert."
-    )
     sonder_input = st.text_area(
-        "Welche spezielle Untersuchung möchtest du durchführen lassen?",
+        "➕ Option: weitere körperliche Untersuchungen durchführen - bitte spezifizieren:",
         key="sonderuntersuchung_input",
     )
 
