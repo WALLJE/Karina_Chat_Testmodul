@@ -741,7 +741,32 @@ def _waehle_fall(df: pd.DataFrame, szenario: str | None) -> pd.Series:
         if gefundene.empty:
             raise ValueError(f"Szenario '{szenario}' nicht in der Tabelle gefunden.")
         return gefundene.iloc[0]
-    return df.sample(1).iloc[0]
+
+    # Wir prüfen, welche Szenarien in der aktuellen Sitzung bereits abgeschlossen wurden,
+    # um Mehrfachziehungen zu vermeiden. Die gespeicherten Namen stammen direkt aus dem
+    # Reset auf der Evaluationsseite und werden als Menge erwartet. Für eine manuelle
+    # Inspektion kann bei Bedarf ``st.write(st.session_state.get("abgeschlossene_szenarien"))``
+    # aktiviert werden.
+    abgeschlossene_szenarien = st.session_state.get("abgeschlossene_szenarien", set())
+
+    # Liegen bereits abgeschlossene Szenarien vor, filtern wir sie aus dem DataFrame heraus,
+    # bevor ein neuer Fall gezogen wird. So erhalten Lernende automatisch einen frischen Fall.
+    if abgeschlossene_szenarien:
+        df_verfuegbar = df[~df["Szenario"].isin(abgeschlossene_szenarien)]
+    else:
+        df_verfuegbar = df
+
+    # Sollten nach dem Filtern keine Fälle übrig sein, informieren wir offen über die Situation
+    # und setzen die Historie zurück. Anschließend wird erneut aus der vollständigen Liste
+    # gezogen. Dieser Schritt vermeidet Endlosschleifen, falls nur wenige Szenarien bereitstehen.
+    if df_verfuegbar.empty:
+        st.info(
+            "ℹ️ Alle verfügbaren Szenarien wurden in dieser Sitzung bereits bearbeitet. Die Auswahl wird zurückgesetzt, damit ein neuer Durchlauf möglich ist."
+        )
+        st.session_state.pop("abgeschlossene_szenarien", None)
+        df_verfuegbar = df
+
+    return df_verfuegbar.sample(1).iloc[0]
 
 
 __all__ = [

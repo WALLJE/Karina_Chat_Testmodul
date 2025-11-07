@@ -62,6 +62,7 @@ Der Karina-Chat unterstützt medizinische Ausbildungsszenarien, indem realistisc
 
 ### Neustart nach der Evaluation
 - **Button „🔄 Neues Szenario starten“:** Nach Abschluss der Evaluation erscheint am unteren Seitenrand ein klar erkennbarer Button. Ein Klick darauf leert alle fallbezogenen Angaben (z. B. Chatverlauf, Befunde, diagnostische Entscheidungen) und setzt die Startinstruktionen zurück.
+- **Automatisch frisches Szenario:** Beim Klick merken wir uns das gerade abgeschlossene Szenario. Bei der nächsten Auswahl wird es übersprungen, bis alle Fälle einmal gespielt wurden. Erst wenn die Liste erschöpft ist, wird sie automatisch geleert, sodass der Zufallszug wieder aus dem kompletten Pool erfolgen kann.
 - **Sauberer Neustart:** Direkt im Anschluss leitet die Anwendung automatisch mit `st.switch_page("Karina_Chat_2.py")` zur Startseite. Dort läuft die Fallvorbereitung erneut durch, damit keine Datenreste aus der vorherigen Sitzung sichtbar bleiben.
 - **Debugging-Hinweis:** Sollte der Reset ausnahmsweise nicht greifen, kann auf der Evaluationsseite kurzfristig `st.write(st.session_state)` aktiviert werden. So lassen sich verbleibende Schlüssel identifizieren und gezielt entfernen.
 

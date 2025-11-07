@@ -65,11 +65,27 @@ def show_sidebar():
             ):
                 st.session_state.patient_logo = random.choice(valid_images)
 
+        # Ein leerer Platzhalter sorgt dafür, dass die Sidebar nicht springt, wenn noch kein Bild gesetzt ist.
+        bildplatzhalter = st.empty()
 
-        try:
-            st.image(st.session_state.patient_logo, width=160)
-        except Exception as e:
-            st.warning(f"⚠️ Bild konnte nicht geladen werden: {e}")
+        patientenbild = st.session_state.get("patient_logo")
+
+        if patientenbild:
+            try:
+                # Hinweis für Debugging: Bei Bedarf kann die folgende Zeile aktiviert werden,
+                # um den aktuell verwendeten Bildpfad in der Sidebar auszugeben.
+                # st.sidebar.write("🧪 DEBUG: Verwendeter Bildpfad:", patientenbild)
+                bildplatzhalter.image(patientenbild, width=160)
+            except Exception as e:
+                st.warning(f"⚠️ Bild konnte nicht geladen werden: {e}")
+        else:
+            # Sichtbarer, aber neutraler Platzhalter, damit die Bildfläche reserviert bleibt.
+            bildplatzhalter.markdown(
+                """
+                <div style="width: 160px; height: 160px; border-radius: 12px; background-color: rgba(0, 0, 0, 0.05);"></div>
+                """,
+                unsafe_allow_html=True,
+            )
 
         if all(k in st.session_state for k in ["patient_name", "patient_age"]):
             patient_text = f"**{st.session_state.patient_name} ({st.session_state.patient_age})**"

@@ -86,9 +86,19 @@ def _zeige_downloadbereich() -> None:
 def _bereinige_session_state_fuer_neustart() -> None:
     """Entfernt alle fallbezogenen Werte, damit ein neues Szenario sauber starten kann."""
 
+    # Wir sichern das aktuell absolvierte Szenario, damit bei der nächsten Auswahl ein
+    # frischer Fall erscheint. Die Menge wird nur einmalig angelegt und anschließend
+    # fortgeschrieben. Für eine detaillierte Kontrolle lässt sich temporär die Zeile
+    # ``st.write(st.session_state.get("abgeschlossene_szenarien"))`` aktivieren.
+    abgeschlossene_szenarien = st.session_state.setdefault("abgeschlossene_szenarien", set())
+    aktuelles_szenario = st.session_state.get("diagnose_szenario")
+    if aktuelles_szenario:
+        abgeschlossene_szenarien.add(aktuelles_szenario)
+
     # Wir verwenden den zentralen Reset-Helfer, um sämtliche fallrelevanten Werte aus dem
-    # Session-State zu löschen. So vermeiden wir veraltete Befunde oder Chatverläufe.
-    reset_fall_session_state()
+    # Session-State zu löschen. Dank ``keep_keys`` bleibt die Liste abgeschlossener Fälle
+    # erhalten, sodass die nächste Auswahl darauf Rücksicht nehmen kann.
+    reset_fall_session_state(keep_keys={"abgeschlossene_szenarien"})
 
     # Zusätzlich entfernen wir Steuerflags der Startseite, damit die Instruktionen und
     # Ladeindikatoren beim nächsten Besuch erneut angezeigt werden. Für Debugging kann
