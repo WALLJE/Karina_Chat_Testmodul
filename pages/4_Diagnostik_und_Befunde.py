@@ -182,6 +182,7 @@ else:
     # st.subheader("📄 Befunde")
     # st.button("🧪 Befunde generieren lassen", disabled=True)
     # st.info("❗Bitte fordern Sie zunächst Untersuchungen an.")
+    pass  # Bewusst keine Ausgabe: Kommentare oben erläutern die Hintergründe für Debugging-Zwecke.
 
 # Weitere Diagnostik-Termine
 if not st.session_state.get("final_diagnose", "").strip():
