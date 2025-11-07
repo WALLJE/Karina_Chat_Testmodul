@@ -71,9 +71,6 @@ def generiere_sonderuntersuchung(
         return get_offline_sonderuntersuchung(sonderwunsch)
 
     patient_forms = get_patient_forms()
-    # Wichtiger Hinweis: Die dreifachen Anführungszeichen werden bewusst escaped, damit
-    # der Wunschtext in der KI-Eingabe klar hervorgehoben bleibt und bei Bedarf schnell
-    # als Debug-Markierung identifiziert werden kann.
     prompt = f"""
 {patient_forms.phrase("nom", capitalize=True)} weist die simulierte Erkrankung "{diagnose_szenario}" auf.
 Wichtige anamnestische Hinweise: {diagnose_features}
@@ -81,7 +78,7 @@ Bereits vorliegender Untersuchungsbefund:
 {bestehender_befund}
 
 Die folgende zusätzliche körperliche Untersuchung wurde explizit angefordert:
-\"\"\"{sonderwunsch}\"\"\"
+{sonderwunsch}
 
 Formuliere einen prägnanten Ergebnisblock mit maximal 3 Sätzen. Verwende das Format:
 **Gesondert angeforderte Untersuchung:** <Kurzbezeichnung der Untersuchung>
