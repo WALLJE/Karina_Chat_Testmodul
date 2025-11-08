@@ -17,7 +17,7 @@ def generiere_koerperbefund(client, diagnose_szenario, diagnose_features, koerpe
 {patient_forms.phrase("nom", capitalize=True)} hat eine zufällig simulierte Erkrankung. Diese lautet: {diagnose_szenario}.
 Weitere relevante anamnestische Hinweise: {diagnose_features}
 Zusatzinformationen: {koerper_befund_tip}
-Erstelle einen körperlichen Untersuchungsbefund, der zu dieser Erkrankung passt, ohne sie explizit zu nennen oder zu diagnostizieren. Berücksichtige Befunde, die sich aus den Zusatzinformationen ergeben könnten.
+Erstelle einen körperlicen Untersuchungsbefund, der zu dieser Erkrankung passt, ohne sie explizit zu nennen oder zu diagnostizieren. Berücksichtige Befunde, die sich aus den Zusatzinformationen ergeben könnten.
 Erstelle eine klinisch konsistente Befundlage für die simulierte Erkrankung. Interpretiere die Befunde nicht, gib keine Hinweise auf die Diagnose.
 
 Beginne immer mit zwei Vitalparametern in eigenen Zeilen:
@@ -84,14 +84,8 @@ Bereits vorliegender Untersuchungsbefund:
 
 Die folgende zusätzliche körperliche Untersuchung wurde explizit angefordert:
 {sonderwunsch}
+Formuliere ein kompaktes, stichwortartiges Untersuchungsergebnis.
 
-Formuliere ein kompaktes Ergebnis im Markdown-Format. Nutze genau folgende Struktur:
-**Erweiterte Untersuchung:** <Kurzbezeichnung der Untersuchung>
-- <Stichwort 1>
-- <optional: Stichwort 2>
-- <optional: Stichwort 3>
-
-Die Stichwörter müssen knapp, ohne vollständige Sätze und auf die Befunde fokussiert sein.
 Gib ausschließlich körperliche Untersuchungsbefunde an. Keine Diagnosen, kein Ausblick.
 """
 
