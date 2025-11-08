@@ -38,11 +38,22 @@ def aktualisiere_diagnostik_zusammenfassung(start_runde=2):
 
     sonder_text = st.session_state.get("sonderdiagnostik_text", "").strip()
     if sonder_text and basistext:
-        diagnostik_eingaben = f"{sonder_text}\n\n{basistext}"
+        diagnostik_eingaben = f"{basistext}\n\n{sonder_text}"
     elif sonder_text:
         diagnostik_eingaben = sonder_text
     else:
         diagnostik_eingaben = basistext
+
+    # Die zusätzlichen körperlichen Untersuchungen liefern eigene Befundfragmente,
+    # die im Supabase-Export unter "Befunde" auftauchen sollen. Wir hängen sie
+    # daher getrennt vom Basistext an und behalten so die ursprüngliche Termin-
+    # Struktur bei.
+    sonder_befund_text = st.session_state.get("sonderdiagnostik_befund_text", "").strip()
+    if sonder_befund_text:
+        if gpt_befunde:
+            gpt_befunde = f"{gpt_befunde}\n\n{sonder_befund_text}"
+        else:
+            gpt_befunde = sonder_befund_text
 
     st.session_state["diagnostik_eingaben_kumuliert"] = diagnostik_eingaben.strip()
     st.session_state["gpt_befunde_kumuliert"] = gpt_befunde.strip()

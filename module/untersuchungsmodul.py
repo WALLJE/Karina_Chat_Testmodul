@@ -71,6 +71,11 @@ def generiere_sonderuntersuchung(
         return get_offline_sonderuntersuchung(sonderwunsch)
 
     patient_forms = get_patient_forms()
+    # Wir zwingen das Modell über die Prompt-Struktur zu knappen Stichpunkten,
+    # damit die Supabase-Auswertung später keine Fließtexte, sondern klar
+    # identifizierbare Befundfragmente enthält. Bei Bedarf können Entwicklerinnen
+    # und Entwickler die Stichpunktzahl erhöhen, indem sie weitere Bullet-Punkte
+    # aktivieren – entsprechende Hinweise stehen im Prompt.
     prompt = f"""
 {patient_forms.phrase("nom", capitalize=True)} weist die simulierte Erkrankung "{diagnose_szenario}" auf.
 Wichtige anamnestische Hinweise: {diagnose_features}
@@ -80,10 +85,13 @@ Bereits vorliegender Untersuchungsbefund:
 Die folgende zusätzliche körperliche Untersuchung wurde explizit angefordert:
 {sonderwunsch}
 
-Formuliere einen prägnanten Ergebnisblock mit maximal 3 Sätzen. Verwende das Format:
-**Gesondert angeforderte Untersuchung:** <Kurzbezeichnung der Untersuchung>
-<Ergebnisbeschreibung>
+Formuliere ein kompaktes Ergebnis im Markdown-Format. Nutze genau folgende Struktur:
+**Erweiterte Untersuchung:** <Kurzbezeichnung der Untersuchung>
+- <Stichwort 1>
+- <optional: Stichwort 2>
+- <optional: Stichwort 3>
 
+Die Stichwörter müssen knapp, ohne vollständige Sätze und auf die Befunde fokussiert sein.
 Gib ausschließlich körperliche Untersuchungsbefunde an. Keine Diagnosen, kein Ausblick.
 """
 

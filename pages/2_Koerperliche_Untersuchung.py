@@ -44,39 +44,90 @@ def aktualisiere_befundanzeige() -> None:
 
 
 def aktualisiere_sonderdiagnostik_prefix() -> None:
-    """Synchronisiert die Zusatzuntersuchungen mit dem Diagnostik-Export."""
+    """Synchronisiert Zusatzuntersuchungen für Diagnostik- und Befundexporte."""
+
+    def _rekonstruiere_befundgrundlage() -> str:
+        """Setzt alle bisher generierten Befunde (Termin 1 ff.) erneut zusammen."""
+
+        passagen = []
+        erster_befund = st.session_state.get("befunde", "").strip()
+        if erster_befund:
+            passagen.append(f"### Termin 1\n{erster_befund}")
+
+        gesamt = st.session_state.get("diagnostik_runden_gesamt", 1)
+        for termin in range(2, gesamt + 1):
+            key = f"befunde_runde_{termin}"
+            text = st.session_state.get(key, "").strip()
+            if text:
+                passagen.append(f"### Termin {termin}\n{text}")
+
+        return "\n---\n".join(passagen).strip()
+
     sonderliste = st.session_state.get("sonderuntersuchungen", [])
     if not sonderliste:
+        # Sobald keine Zusatzuntersuchungen mehr vorhanden sind, entfernen wir
+        # alle Zusatzfelder aus dem Session-State und stellen die Basiswerte her.
         st.session_state.pop("sonderdiagnostik_text", None)
-        basis = st.session_state.get("diagnostik_eingaben_basis", "").strip()
-        if basis:
-            st.session_state["diagnostik_eingaben_kumuliert"] = basis
-        elif "diagnostik_eingaben_kumuliert" in st.session_state:
-            st.session_state["diagnostik_eingaben_kumuliert"] = ""
+        st.session_state.pop("sonderdiagnostik_befund_text", None)
+
+        basis_diag = st.session_state.get("diagnostik_eingaben_basis", "").strip()
+        st.session_state["diagnostik_eingaben_kumuliert"] = basis_diag
+
+        basis_befund = _rekonstruiere_befundgrundlage()
+        if basis_befund:
+            st.session_state["gpt_befunde_kumuliert"] = basis_befund
+        elif "gpt_befunde_kumuliert" in st.session_state:
+            st.session_state["gpt_befunde_kumuliert"] = ""
         return
 
-    abschnitte = []
+    diag_abschnitte = []
+    befund_abschnitte = []
     for index, eintrag in enumerate(sonderliste, start=1):
-        anforderung = eintrag.get("anforderung", "").strip()
+        anforderung = eintrag.get("anforderung", "").strip() or "(keine Angabe)"
         ergebnis = eintrag.get("diagnostik", "").strip()
-        abschnitte.append(
-            "\n".join(
-                [
-                    f"### Gesondert angeforderte Untersuchung {index}",
-                    f"Anforderung: {anforderung or '(keine Angabe)'}",
-                    "Ergebnis:",
-                    ergebnis or "(kein Ergebnis hinterlegt)",
-                ]
-            ).strip()
-        )
 
-    sondertext = "\n\n".join(abschnitte).strip()
-    st.session_state["sonderdiagnostik_text"] = sondertext
-    basis = st.session_state.get("diagnostik_eingaben_basis", "").strip()
-    if basis:
-        st.session_state["diagnostik_eingaben_kumuliert"] = f"{sondertext}\n\n{basis}".strip()
-    else:
-        st.session_state["diagnostik_eingaben_kumuliert"] = sondertext
+        # Die Diagnostik-Dokumentation erhält nur den Wunsch selbst – Supabase
+        # erwartet hier ausdrücklich keinen Ergebnistext. Das Schlüsselwort
+        # „erweiterte Untersuchung“ erleichtert später die Filterung.
+        diag_abschnitte.append(f"- erweiterte Untersuchung: {anforderung}")
+
+        if ergebnis:
+            # Wir führen die Stichpunkte der Ergebnisbeschreibung in einer Zeile
+            # zusammen, damit Supabase einen gut lesbaren Kurzbefund erhält.
+            stichpunkte = [
+                zeile.strip("-• ").strip()
+                for zeile in ergebnis.splitlines()
+                if zeile.strip() and not zeile.strip().startswith("**")
+            ]
+            kurzfassung = "; ".join(stichpunkte) if stichpunkte else ergebnis.replace("\n", " ").strip()
+            befund_abschnitte.append(
+                f"- Erweiterte Untersuchung {index}: {kurzfassung or '(kein Ergebnis hinterlegt)'}"
+            )
+        else:
+            befund_abschnitte.append(
+                f"- Erweiterte Untersuchung {index}: (kein Ergebnis hinterlegt)"
+            )
+
+    sondertext_diag = "\n".join(diag_abschnitte).strip()
+    sondertext_befund = "\n".join(befund_abschnitte).strip()
+
+    if sondertext_diag:
+        sondertext_diag = f"### Erweiterte Untersuchungen\n{sondertext_diag}"
+        st.session_state["sonderdiagnostik_text"] = sondertext_diag
+
+    if sondertext_befund:
+        sondertext_befund = f"### Erweiterte Untersuchungen\n{sondertext_befund}"
+        st.session_state["sonderdiagnostik_befund_text"] = sondertext_befund
+
+    basis_diag = st.session_state.get("diagnostik_eingaben_basis", "").strip()
+    kombinierte_diag = "\n\n".join(teil for teil in [basis_diag, sondertext_diag] if teil).strip()
+    st.session_state["diagnostik_eingaben_kumuliert"] = kombinierte_diag
+
+    basis_befund = _rekonstruiere_befundgrundlage()
+    kombinierte_befunde = "\n\n".join(
+        teil for teil in [basis_befund, sondertext_befund] if teil
+    ).strip()
+    st.session_state["gpt_befunde_kumuliert"] = kombinierte_befunde
 
 
 # Standardinitialisierung, damit nach Laden eines Falls konsistente Strukturen
