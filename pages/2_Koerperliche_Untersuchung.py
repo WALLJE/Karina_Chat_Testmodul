@@ -92,14 +92,13 @@ def aktualisiere_sonderdiagnostik_prefix() -> None:
         diag_abschnitte.append(f"- erweiterte Untersuchung: {anforderung}")
 
         if ergebnis:
-            # Wir führen die Stichpunkte der Ergebnisbeschreibung in einer Zeile
-            # zusammen, damit Supabase einen gut lesbaren Kurzbefund erhält.
-            stichpunkte = [
-                zeile.strip("-• ").strip()
-                for zeile in ergebnis.splitlines()
-                if zeile.strip() and not zeile.strip().startswith("**")
-            ]
-            kurzfassung = "; ".join(stichpunkte) if stichpunkte else ergebnis.replace("\n", " ").strip()
+            # Supabase erhält exakt die kurze Fassung, die bereits im Modul
+            # „untersuchungsmodus.py“ erzeugt wird. Die dort vorbereiteten
+            # Stichpunkte oder JSON-Strukturen gelten als maßgeblich und werden
+            # hier nur noch für die Ausgabe getrimmt. Optional lässt sich über
+            # eine temporäre Debug-Ausgabe wie ``st.write(ergebnis)`` prüfen,
+            # welche Werte im Session-State vorliegen.
+            kurzfassung = ergebnis.strip()
             befund_abschnitte.append(
                 f"- Erweiterte Untersuchung {index}: {kurzfassung or '(kein Ergebnis hinterlegt)'}"
             )
